@@ -14,6 +14,10 @@ obj-$(CONFIG_VIDEO_AR0830) += ar0830.o
 obj-$(CONFIG_VIDEO_ISX031) += isx031.o
 obj-$(CONFIG_VIDEO_IMX415) += imx415.o
 
+ifeq ($(CONFIG_VIDEO_D4XX), m)
+	ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES
+endif
+
 subdir-ccflags-y := -DDRIVER_VERSION_SUFFIX=\"${DRIVER_VERSION_SUFFIX}\"
 
 obj-$(CONFIG_VIDEO_MAX9X) += max9x/
