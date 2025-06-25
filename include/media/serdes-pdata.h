@@ -16,6 +16,9 @@ struct serdes_subdev_info {
 	unsigned short ser_phys_addr;
 	unsigned int sensor_dt;
 	struct gpiod_lookup ser_gpio[MAX_SER_GPIO_NUM];
+#if IS_ENABLED(CONFIG_VIDEO_D4XX)
+	unsigned short aggregated_link;
+#endif
 };
 
 struct serdes_platform_data {
