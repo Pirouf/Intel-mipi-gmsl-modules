@@ -15,7 +15,10 @@ obj-$(CONFIG_VIDEO_ISX031) += isx031.o
 obj-$(CONFIG_VIDEO_IMX415) += imx415.o
 
 subdir-ccflags-y := -DDRIVER_VERSION_SUFFIX=\"${DRIVER_VERSION_SUFFIX}\"
+
 obj-$(CONFIG_VIDEO_MAX9X) += max9x/
 obj-$(CONFIG_VIDEO_IMX586) += imx586.o
 obj-$(CONFIG_VIDEO_MAXIM_SERDES) += maxim-serdes/
 obj-$(CONFIG_VIDEO_D4XX) += d4xx.o
+
+obj-$(CONFIG_VIDEO_D4XX_COMPAT) += d4xx-compat/
