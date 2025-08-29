@@ -6,6 +6,6 @@ KERNEL_VERSION := $(shell echo $(KERNELRELEASE) | cut -d- -f1 | sed -r 's/([0-9]
 ccflags-y += -I$(src)/../../../$(KERNEL_VERSION)/include-overrides
 ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DCONFIG_SYSFS  -DPLATFORM_AXIOMTEK
 
-obj-$(CONFIG_I2C_IOEXPANDER_SER_MAX9295) += max9295.o
-obj-$(CONFIG_I2C_IOEXPANDER_DESER_MAX9296) += max9296.o
+obj-$(CONFIG_VIDEO_D4XX_MAX9295) += d4xx-max9295.o
+obj-$(CONFIG_VIDEO_D4XX_MAX9296) += d4xx-max9296.o
 obj-$(CONFIG_VIDEO_D4XX_COMPAT) += d4xx.o
