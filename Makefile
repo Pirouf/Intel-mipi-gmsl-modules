@@ -67,6 +67,7 @@ export CONFIG_VIDEO_D4XX=m
 export CONFIG_VIDEO_D4XX_MAX9295 = m
 export CONFIG_VIDEO_D4XX_MAX9296 = m
 export CONFIG_VIDEO_D4XX_COMPAT=m
+export CONFIG_VIDEO_D4XX_MAX96724 = m
 
 # Define config macros for conditional compilation in ipu-acpi.c
 # IS_ENABLED() checks for CONFIG_XXX or CONFIG_XXX_MODULE
