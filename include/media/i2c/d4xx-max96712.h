@@ -22,6 +22,9 @@
  * @ingroup serdes_group
  * @{
  */
+struct max96712_pdata {
+	__u32 max_src;
+};
 
 int max96712_get_available_pipe_id(struct device *dev, int vc_id);
 int max96712_set_pipe(struct device *dev, int pipe_id, u8 data_type1,
