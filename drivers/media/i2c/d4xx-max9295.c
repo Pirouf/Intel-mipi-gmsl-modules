@@ -40,6 +40,7 @@
 #define MAX9295_CTRL0_ADDR 0x10
 #define MAX9295_SRC_CTRL_ADDR 0x2BF
 #define MAX9295_SRC_PWDN_ADDR 0x02BE
+#define MAX9295_2C0_ADDR 0x02C0
 #define MAX9295_SRC_OUT_RCLK_ADDR 0x3F1
 #define MAX9295_START_PIPE_ADDR 0x311
 #define MAX9295_PIPE_EN_ADDR 0x2
@@ -108,7 +109,12 @@
 
 #define MAX9295_RESET_ALL 0x80
 #define MAX9295_RESET_SRC 0x60
+#define MAX9295_RESET_ESYNC 0x77
+
 #define MAX9295_PWDN_GPIO 0x90
+#define MAX9295_PWDN_ESYNC 0x04
+
+#define MAX9295_2C0_ESYNC 0x57
 
 #define MAX9295_MAX_PIPES 0x4
 
@@ -525,10 +531,13 @@ int max9295_setup_control(struct device *dev)
 	msleep(150);
 
 	dev_dbg(dev, "%s: configuring sensor power and reset\n", __func__);
-	err = max9295_write_reg(dev, MAX9295_SRC_PWDN_ADDR, MAX9295_PWDN_GPIO);
+	err = max9295_write_reg(dev, MAX9295_SRC_PWDN_ADDR, MAX9295_PWDN_ESYNC);
 	if (err)
 		dev_err(dev, "%s: ERROR: failed to write SRC_PWDN, err=%d\n", __func__, err);
-	err = max9295_write_reg(dev, MAX9295_SRC_CTRL_ADDR, MAX9295_RESET_SRC);
+	err = max9295_write_reg(dev, MAX9295_SRC_CTRL_ADDR, MAX9295_RESET_ESYNC);
+	if (err)
+		dev_err(dev, "%s: ERROR: failed to write 0x2C0-reg, err=%d\n", __func__, err);
+	err = max9295_write_reg(dev, MAX9295_2C0_ADDR, MAX9295_2C0_ESYNC);
 	if (err)
 		dev_err(dev, "%s: ERROR: failed to write SRC_CTRL, err=%d\n", __func__, err);
 	err = max9295_write_reg(dev, MAX9295_SRC_OUT_RCLK_ADDR, MAX9295_SRC_RCLK);
