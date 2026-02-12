@@ -1,0 +1,67 @@
+From bbeb0224b708ca11adbbff3172d154be4d4ca26a Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 17 Jul 2026 09:26:15 -0700
+Subject: [PATCH 73/80] d4xx-compat: keep v4l2_subdev_stream_config linux 6.18
+ external
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/Makefile |  3 ++-
+ drivers/media/i2c/d4xx-compat/d4xx.c   | 27 ++++++++++++++++++++++++++
+ 2 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/Makefile b/drivers/media/i2c/d4xx-compat/Makefile
+index ee5094db..c6bac1df 100644
+--- a/drivers/media/i2c/d4xx-compat/Makefile
++++ b/drivers/media/i2c/d4xx-compat/Makefile
+@@ -3,7 +3,8 @@
+ 
+ KERNEL_VERSION := $(shell echo $(KERNELRELEASE) | cut -d- -f1 | sed -r 's/([0-9]+\.[0-9]+).*/\1.0/g')
+ 
+-ccflags-y += -I$(src)/../../../$(KERNEL_VERSION)/include-overrides
++CC := ${CC} -I${M}/$(KERNEL_VERSION)/include -I${M}/include
++
+ ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DCONFIG_SYSFS  -DPLATFORM_AXIOMTEK
+ 
+ obj-$(CONFIG_VIDEO_D4XX_MAX9295) += d4xx-max9295.o
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index aa2ec249..0e970975 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -554,6 +554,33 @@ struct ds5 {
+ 	int pad_to_vc[DS5_MUX_PAD_COUNT];
+ 	int pad_to_substream[NR_OF_CSI2_BE_SOC_STREAMS];
+ 	struct mutex mutex;
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
++/**
++ * struct v4l2_subdev_stream_config - Used for storing stream configuration.
++ *
++ * @pad: pad number
++ * @stream: stream number
++ * @enabled: has the stream been enabled with v4l2_subdev_enable_streams()
++ * @fmt: &struct v4l2_mbus_framefmt
++ * @crop: &struct v4l2_rect to be used for crop
++ * @compose: &struct v4l2_rect to be used for compose
++ * @interval: frame interval
++ *
++ * This structure stores configuration for a stream.
++ */
++struct v4l2_subdev_stream_config {
++	u32 pad;
++	u32 stream;
++	bool enabled;
++
++	struct v4l2_mbus_framefmt fmt;
++	struct v4l2_rect crop;
++	struct v4l2_rect compose;
++	struct v4l2_fract interval;
++};
++#endif
++
+ #endif
+ };
+ 
+-- 
+2.25.1
+

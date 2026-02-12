@@ -1,0 +1,50 @@
+From 08d81d5062a2e8d3bb017b6e17438240807eebcf Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Wed, 22 Jul 2026 09:13:00 -0700
+Subject: [PATCH 71/80] d4xx-compat: force control-channel switch on every v4l2
+ ext_ctrl
+
+For every realsense-viewer cyclic EXT_CTRL requests systematically
+forcing the max96274 channel-control register writes
+(e.g. `d4xx-max96724 1-0027: REG_WRITE: [0x0003] = 0xFFFFFFAA`)
+prevents i2c link lost between max96724 GMSL i2c-to-i2c max9295/d4xx
+under concurrent multicam/multisensor stream start-stop-start corner-cases.
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index 23542c95..aa2ec249 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -3111,7 +3111,7 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+ 		__func__, ds5_get_sensor_name(state), ctrl->name);
+ 
+ #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+-	//ret = max96724_switch_link_channel(state->dser_dev);
++	ret = max96724_switch_link_channel(state->dser_dev);
+ #endif
+ 
+ 	switch (ctrl->id) {
+@@ -3324,6 +3324,7 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+ 		break;
+ #endif
+ 	}
++
+ 	return ret;
+ }
+ 
+@@ -7696,7 +7697,7 @@ static void ds5_remove(struct i2c_client *c)
+ 			mutex_lock(&serdes_lock__);
+ 
+ #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+-			//ret = max96724_switch_link_channel(state->dser_dev);
++			ret = max96724_switch_link_channel(state->dser_dev);
+ 			ret = max9295_reset_control(state->ser_dev);
+ 			if (ret)
+ 				dev_warn(&c->dev,
+-- 
+2.25.1
+
