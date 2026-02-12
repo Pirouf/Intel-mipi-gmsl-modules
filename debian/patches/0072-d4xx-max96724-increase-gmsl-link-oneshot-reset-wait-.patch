@@ -1,0 +1,120 @@
+From 2fde3634c0b474839a21d13a45a8722c6ff382d7 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 28 Jul 2026 06:59:50 -0700
+Subject: [PATCH 72/80] d4xx-max96724: increase gmsl link oneshot reset wait
+ states
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx-max96724.c | 81 ++++++++++---------
+ 1 file changed, 44 insertions(+), 37 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+index 92a57c50..7f87747b 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+@@ -1866,6 +1866,7 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
+ 	}
+ 
+ 	/* disable each video pipe configuration corresponding to the reset link
++	*/
+ 	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+ 
+ 		if (src_link != priv->pipe[i].src_link)
+@@ -1879,7 +1880,49 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
+ 				MAX96724_VIDEO_PIPE_EN_FIELD(i),
+ 				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
+ 	}
+-	*/
++
++	dev_info(dev, "%s: reset %s Link ctrl (stream count=%u) \n",
++		 __func__, max96724_get_link_name(src_link), st_count);
++
++	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
++		MAX96724_RESET_CTRL_FIELD(src_port),
++		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 1U));
++	if (err)
++		dev_err(dev, "%s: Failed to trigger %s link reset: %d\n",
++			__func__,
++			max96724_get_link_name(src_link),
++			err);
++
++	/* delay to settle link */
++	msleep(10);
++
++	/* clear link and ctrl reset */
++	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
++		MAX96724_RESET_CTRL_FIELD(src_port),
++		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 0U));
++	if (err)
++		dev_err(dev, "%s: Failed to clear %s link reset: %d\n",
++			__func__,
++			max96724_get_link_name(src_link),
++			err);
++
++	/* delay to settle link */
++	msleep(300);
++
++	/* Enable all channels
++	 */
++	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
++		~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
++		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
++		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(2, 0), 1U)
++		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(3, 0), 1U)));
++	if (err)
++		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
++			  __func__,
++			  err);
++
++	/* delay to settle link */
++	msleep(30);
+ 
+ 	/* Re-Check GMSL link status after initial configuration */
+ 	{
+@@ -1959,42 +2002,6 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
+ 			(pipe_vs_status & 0x08) ? "VS_DET_3 " : "");
+ 	}
+ 
+-	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
+-		MAX96724_RESET_CTRL_FIELD(src_port),
+-		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 1U));
+-	if (err)
+-		dev_err(dev, "%s: Failed to trigger %s link reset: %d\n",
+-			__func__,
+-			max96724_get_link_name(src_link),
+-			err);
+-
+-	/* delay to settle link */
+-	msleep(100);
+-
+-	/* clear link and ctrl reset */
+-	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
+-		MAX96724_RESET_CTRL_FIELD(src_port),
+-		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 0U));
+-	if (err)
+-		dev_err(dev, "%s: Failed to clear %s link reset: %d\n",
+-			__func__,
+-			max96724_get_link_name(src_link),
+-			err);
+-
+-	/* Enable all channels
+-	 */
+-	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
+-		~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
+-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
+-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(2, 0), 1U)
+-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(3, 0), 1U)));
+-	if (err)
+-		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
+-			  __func__,
+-			  err);
+-
+-	/* delay to settle link */
+-	msleep(100);
+ }
+ EXPORT_SYMBOL(max96724_reset_oneshot);
+ 
+-- 
+2.25.1
+

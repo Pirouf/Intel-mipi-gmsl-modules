@@ -1,0 +1,367 @@
+From bc2dc6c4ad64d057f3424f8117ad73b96f94d4e1 Mon Sep 17 00:00:00 2001
+From: Florent Pirou <florent.pirou@intel.com>
+Date: Fri, 10 Apr 2026 17:47:19 +0800
+Subject: [PATCH 77/80] max9x: add generic max9295d support
+
+```
+[ 6282.379916] max9x 2-0027: probe successful
+[ 6282.384107] max9x 2-0027: Isolate 1
+[ 6282.387678] max9x 2-0027: Isolate 1 complete
+[ 6282.395502] max9x 21-0043: Probing
+[ 6282.399056] max9x 21-0043: Missing VDD regulator
+[ 6282.405136] max9x 21-0043: Detected MAX9x chip ID  0x95 revision 0x8
+[ 6282.457447] max9x 21-0043: sleep for startup after soft reset
+[ 6282.563465] max9x 21-0043: Remap address from 0x62 to 0x43
+[ 6282.597564] max9x 21-0043: Detected MAX9295D revision 8
+[ 6282.618645] max9x 21-0043: Serial-link 0: enabled
+[ 6282.623453] max9295_enable_serial_link: pipe_id=1
+```
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/max9x/max9295.c     | 81 +++++++++++++++++++++++----
+ drivers/media/i2c/max9x/max9295.h     |  6 +-
+ drivers/media/i2c/max9x/max9x_pdata.h |  1 +
+ drivers/media/i2c/max9x/serdes.c      | 44 +++++++++++++++
+ drivers/media/i2c/max9x/serdes.h      |  1 +
+ 5 files changed, 120 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/media/i2c/max9x/max9295.c b/drivers/media/i2c/max9x/max9295.c
+index 7c5347e9..8edc7ac0 100644
+--- a/drivers/media/i2c/max9x/max9295.c
++++ b/drivers/media/i2c/max9x/max9295.c
+@@ -45,6 +45,12 @@ static const char *const max9295_gpio_chip_names[] = {
+ 	"MFP8",
+ 	"MFP9",
+ 	"MFP10",
++	"MFP11",
++	"MFP12",
++	"MFP13",
++	"MFP14",
++	"MFP15",
++	"MFP16",
+ };
+ 
+ /* Declarations */
+@@ -138,24 +144,43 @@ static int max9295_gpio_direction_input(struct gpio_chip *chip, unsigned int off
+ 			MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 1U));
+ }
+ 
++
+ static int max9295_gpio_direction_output(struct gpio_chip *chip, unsigned int offset, int value)
+ {
+ 	struct max9x_common *common = from_gpio_chip(chip);
++	struct device *dev = common->dev;
+ 	struct regmap *map = common->map;
++	struct max9x_desc *desc = common->des;
+ 	unsigned int mask = 0;
+-	unsigned int val;
+-
++	unsigned int val, val2;
++	int ret = 0;
+ 	mask = MAX9295_GPIO_A_OUT_DIS_FIELD | MAX9295_GPIO_A_OUT_FIELD |
+-	       MAX9295_GPIO_A_RX_EN_FIELD;
++	       MAX9295_GPIO_A_RX_EN_FIELD | MAX9295_GPIO_A_IN_FIELD | MAX9295_GPIO_A_RES_CFG_FIELD;
+ 
++	val = MAX9X_FIELD_PREP(MAX9295_GPIO_A_RES_CFG_FIELD, 0U);
+ 	// Enable the GPIO as an output
+-	val = MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 0U);
++	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 0U);
+ 	// Write out the initial value to the GPIO
+ 	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U));
+ 	// Disable remote control over SerDes link
+ 	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_RX_EN_FIELD, 0U);
++	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_IN_FIELD, 1U);
++
++	regmap_read(map, MAX9295_GPIO_A(offset), &val2);
++	dev_dbg(dev, "value of 0x%02x before update_bits val=0x%02x\n",
++		MAX9295_GPIO_A(offset), val2);
++
++	ret = regmap_update_bits(map, MAX9295_GPIO_A(offset),
++				 mask,
++				 val);
+ 
+-	return regmap_update_bits(map, MAX9295_GPIO_A(offset), mask, val);
++	if (desc->dev_id != MAX9295D)
++		return ret;
++
++	ret = regmap_update_bits(map, MAX9295_GPIO_B(offset),
++				 MAX9295_GPIO_B_OUT_TYPE_FIELD,
++				 MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
++	return ret;
+ }
+ 
+ static int max9295_gpio_get(struct gpio_chip *chip, unsigned int offset)
+@@ -175,20 +200,42 @@ static void max9295_gpio_set(struct gpio_chip *chip, unsigned int offset, int va
+ {
+ 	struct max9x_common *common = from_gpio_chip(chip);
+ 	struct regmap *map = common->map;
++	struct max9x_desc *desc = common->des;
+ 
+ 	regmap_update_bits(map, MAX9295_GPIO_A(offset),
+ 		MAX9295_GPIO_A_OUT_FIELD,
+-		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U)));
++		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 1 ? 0U : 1U)));
++
++	if (desc->dev_id != MAX9295D)
++		return;
++
++	regmap_update_bits(map, MAX9295_GPIO_B(offset),
++			   MAX9295_GPIO_B_OUT_TYPE_FIELD,
++			   MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
++);
++
+ }
+ #else
+ static int max9295_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
+ {
+ 	struct max9x_common *common = from_gpio_chip(chip);
+ 	struct regmap *map = common->map;
++	struct max9x_desc *desc = common->des;
++	int ret;
+ 
+-	return regmap_update_bits(map, MAX9295_GPIO_A(offset),
++	ret = regmap_update_bits(map, MAX9295_GPIO_A(offset),
+ 		MAX9295_GPIO_A_OUT_FIELD,
+ 		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U)));
++
++
++	if (desc->dev_id != MAX9295D)
++		return ret;
++
++	ret = regmap_update_bits(map, MAX9295_GPIO_B(offset),
++				 MAX9295_GPIO_B_OUT_TYPE_FIELD,
++				 MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
++
++	return ret;
+ }
+ #endif
+ 
+@@ -196,6 +243,7 @@ static int max9295_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
+ {
+ 	struct max9x_common *common = from_gpio_chip(chip);
+ 	struct regmap *map = common->map;
++	struct max9x_desc *desc = common->des;
+ 	unsigned int out_type_mask = MAX9295_GPIO_B_OUT_TYPE_FIELD;
+ 	unsigned int out_type_val;
+ 
+@@ -215,6 +263,7 @@ static int max9295_setup_gpio(struct max9x_common *common)
+ 	struct device *dev = common->dev;
+ 	int ret;
+ 	struct max9x_gpio_pdata *gpio_pdata = NULL;
++	struct max9x_desc *desc = common->des;
+ 
+ 	if (dev->platform_data) {
+ 		struct max9x_pdata *pdata = dev->platform_data;
+@@ -237,7 +286,8 @@ static int max9295_setup_gpio(struct max9x_common *common)
+ 	common->gpio_chip.get = max9295_gpio_get;
+ 	common->gpio_chip.set = max9295_gpio_set;
+ 	common->gpio_chip.set_config = max9295_gpio_set_config;
+-	common->gpio_chip.ngpio = MAX9295_NUM_GPIO;
++	common->gpio_chip.ngpio = desc->dev_id == MAX9295D ?
++					MAX9295D_NUM_GPIO : MAX9295_NUM_GPIO;
+ 	common->gpio_chip.can_sleep = 1;
+ 	common->gpio_chip.base = -1;
+ 	if (gpio_pdata && gpio_pdata->names)
+@@ -259,8 +309,9 @@ static int max9295_set_pipe_csi_enabled(struct max9x_common *common,
+ {
+ 	struct device *dev = common->dev;
+ 	struct regmap *map = common->map;
++	struct max9x_desc *desc = common->des;
+ 	int ret;
+-
++	int val;
+ 	dev_dbg(dev, "Video-pipe %d, csi %d: %s, %d lanes", pipe_id, csi_id,
+ 		(enable ? "enable" : "disable"), common->csi_link[csi_id].config.num_lanes);
+ 
+@@ -304,7 +355,7 @@ static int max9295_set_pipe_data_types_enabled(struct max9x_common *common,
+ 
+ 	for (data_type_slot = 0; data_type_slot < common->video_pipe[pipe_id].config.num_data_types; data_type_slot++) {
+ 		dt = common->video_pipe[pipe_id].config.data_type[data_type_slot];
+-		dev_dbg(dev, "Video-pipe %d, data type %d: (%#.2x: %s)",
++		dev_dbg(dev, "%s Video-pipe %d, data type %d: (%#.2x: %s)", __func__,
+ 			pipe_id, data_type_slot, dt, (enable ? "enable" : "disable"));
+ 
+ 		TRY(ret, regmap_update_bits_retry(map, MAX9295_MEM_DT_SEL(pipe_id, data_type_slot),
+@@ -340,6 +391,7 @@ static int max9295_set_video_pipe_double_loading(struct max9x_common *common,
+ 	unsigned int fields;
+ 	int ret;
+ 
++	dev_dbg(dev, "Configuring double loading mode for pipe %u, bpp=%u", pipe_id, bpp);
+ 	if (pipe_id >= MAX9295_NUM_VIDEO_PIPES)
+ 		return -EINVAL;
+ 
+@@ -492,6 +544,7 @@ static int max9295_enable_serial_link(struct max9x_common *common, unsigned int
+ 		if (common->video_pipe[pipe_id].enabled == false)
+ 			continue;
+ 
++		printk("max9295_enable_serial_link: pipe_id=%d\n", pipe_id);
+ 		config = &common->video_pipe[pipe_id].config;
+ 
+ 		TRY(ret, max9295_set_pipe_data_types_enabled(common, pipe_id, true));
+@@ -626,6 +679,10 @@ static int max9295_verify_devid(struct max9x_common *common)
+ 		dev_info(dev, "Detected MAX9295B revision %ld",
+ 			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
+ 		break;
++	case MAX9295D:
++		dev_info(dev, "Detected MAX9295D revision %ld",
++			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
++		break;
+ 	case MAX9295E:
+ 		dev_info(dev, "Detected MAX9295E revision %ld",
+ 			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
+@@ -758,10 +815,10 @@ static int max9295_add_translate_addr(struct max9x_common *common,
+ 		TRY(ret, regmap_read_retry(map, MAX9295_I2C_SRC(i2c_id, alias), &src));
+ 
+ 		src = FIELD_GET(MAX9295_I2C_SRC_FIELD, src);
+-		if (src == virt_addr || src == 0) {
+-			dev_dbg(dev, "SRC %02x = %02x, DST %02x = %02x",
++		dev_dbg(dev, "SRC %02x = %02x, DST %02x = %02x",
+ 				MAX9295_I2C_SRC(i2c_id, alias), virt_addr,
+ 				MAX9295_I2C_DST(i2c_id, alias), phys_addr);
++		if (src == virt_addr || src == 0) {
+ 			TRY(ret, regmap_write_retry(map, MAX9295_I2C_DST(i2c_id, alias),
+ 					      MAX9X_FIELD_PREP(MAX9295_I2C_DST_FIELD, phys_addr))
+ 			);
+diff --git a/drivers/media/i2c/max9x/max9295.h b/drivers/media/i2c/max9x/max9295.h
+index de450563..ddef8e16 100644
+--- a/drivers/media/i2c/max9x/max9295.h
++++ b/drivers/media/i2c/max9x/max9295.h
+@@ -28,6 +28,7 @@
+ enum max9295_dev_id {
+ 	MAX9295A = 0x91,
+ 	MAX9295B = 0x93,
++	MAX9295D = 0x95,
+ 	MAX9295E = 0x9B
+ };
+ 
+@@ -48,12 +49,14 @@ enum max9295_gpio_pull_updn_sel {
+ #define MAX9295_NUM_MIPI_MAPS 16
+ #define MAX9295_NUM_CSI_LINKS 2 // Only 1 port, but it is technically Port B
+ #define MAX9295_NUM_GPIO 11
++#define MAX9295D_NUM_GPIO 17
+ #define MAX9295_NUM_DATA_TYPES 4
+ 
+ #define MAX9295_REG0 (0x0)
+ #define MAX9295_REG0_DEV_ADDR_FIELD GENMASK(7, 1)
+ 
+ #define MAX9295_PHY_REM_CTRL (0x1)
++#define MAX9295_PHY_REM2_CTRL (0x3)
+ #define MAX9295_PHY_REM_CTRL_DIS_FIELD BIT(4)
+ #define MAX9295_PHY_LOCAL_CTRL_DIS_FIELD BIT(5)
+ 
+@@ -108,7 +111,8 @@ enum max9295_gpio_pull_updn_sel {
+ #define MAX9295_FRONTTOP_11_DBL10_FIELD(pipe_id) BIT(pipe_id)
+ #define MAX9295_FRONTTOP_11_DBL12_FIELD(pipe_id) BIT((pipe_id) + 4)
+ 
+-#define MAX9295_MEM_DT_SEL(pipe_id, dt_slot) (0x314 + (dt_slot) / 2 * 0xC2 + 2 * (pipe_id) + (dt_slot))
++// #define MAX9295_MEM_DT_SEL(pipe_id, dt_slot) (0x314 + (dt_slot) / 2 * 0xC2 + 2 * (pipe_id) + (dt_slot))
++#define MAX9295_MEM_DT_SEL(p, x) (0x314 + (p) * 0x2 + (x))
+ #define MAX9295_MEM_DT_SEL_DT_FIELD GENMASK(5, 0)
+ #define MAX9295_MEM_DT_SEL_EN_FIELD BIT(6)
+ 
+diff --git a/drivers/media/i2c/max9x/max9x_pdata.h b/drivers/media/i2c/max9x/max9x_pdata.h
+index 577a9fc6..c8ad0df4 100644
+--- a/drivers/media/i2c/max9x/max9x_pdata.h
++++ b/drivers/media/i2c/max9x/max9x_pdata.h
+@@ -21,6 +21,7 @@ struct max9x_subdev_pdata {
+ 	unsigned short phys_addr; // Remap or translate subdev
+ 
+ 	struct gpiod_lookup *gpio; // SER only
++	unsigned int num_subdevs;
+ };
+ 
+ struct max9x_serial_link_pdata {
+diff --git a/drivers/media/i2c/max9x/serdes.c b/drivers/media/i2c/max9x/serdes.c
+index 9e11d905..36d26a7f 100644
+--- a/drivers/media/i2c/max9x/serdes.c
++++ b/drivers/media/i2c/max9x/serdes.c
+@@ -116,6 +116,13 @@ static struct max9x_desc max9x_chips[] = {
+ 		.chip_type = MAX9295,
+ 		.get_max9x_ops = max9x_get_ops,
+ 	},
++	[MAX9295d] = {
++		.dev_id = 0x95,
++		.rev_reg = 0xE,
++		.serdes_type = MAX9X_SERIALIZER,
++		.chip_type = MAX9295,
++		.get_max9x_ops = max9x_get_ops,
++	},
+ 	/*need to check dev_id and others when used*/
+ 	[MAX96717] = {
+ 		.dev_id = 0x91,
+@@ -130,6 +137,7 @@ static const struct of_device_id max9x_of_match[] = {
+ 	{ .compatible = "max9x,max9296", .data = &max9x_chips[MAX9296] },
+ 	{ .compatible = "max9x,max96724", .data = &max9x_chips[MAX96724] },
+ 	{ .compatible = "max9x,max9295", .data = &max9x_chips[MAX9295] },
++	{ .compatible = "max9x,max9295d", .data = &max9x_chips[MAX9295d] },
+ 	{ .compatible = "max9x,max96717", .data = &max9x_chips[MAX96717] },
+ 	{}
+ };
+@@ -140,6 +148,7 @@ static const struct i2c_device_id max9x_id[] = {
+ 	{ "max9296", MAX9296 },
+ 	{ "max96724", MAX96724 },
+ 	{ "max9295", MAX9295 },
++	{ "max9295", MAX9295d },
+ 	{ "max96717", MAX96717 },
+ 	{ }
+ };
+@@ -1904,8 +1913,43 @@ static int max9x_registered(struct v4l2_subdev *sd)
+ 						}
+ 					}
+ 
++					// HACK: Just make ar0234 work
++					if (!strcmp(subdev_pdata->board_info.type, "ar0234")) {
++						// ZED-X-ONE-GS set GPIO0 push-pull and select pull-down
++						dev_dbg(dev, "serializer GPIO0 pull-down %s sensor RESET_BAR signal toggled (%s)...",
++							subdev_pdata->board_info.type,
++							dev_id);
++						regmap_write(common->map, 0x2BF, 0x60);
++						regmap_write(common->map, 0x2BE, 0x80);
++						usleep_range(10000, 10000);
++						regmap_write(common->map, 0x2BE, 0x90);
++						//Needs to sleep for quite a while before register writes
++						usleep_range(200 * 1000, 200 * 1000 + 500);
++
++						// ZED-X set GPIO7/8 push-pull and select pull-down
++						dev_dbg(dev, "serializer GPIO7/8 pull-down %s sensor RESET_BAR signal toggled (%s)...",
++							subdev_pdata->board_info.type,
++							dev_id);
++						regmap_write(common->map, 0x2D4, 0x60);
++						regmap_write(common->map, 0x2D3, 0x80);
++						usleep_range(10000, 10000);
++						regmap_write(common->map, 0x2D3, 0x90);
++						regmap_write(common->map, 0x2D7, 0x60);
++						regmap_write(common->map, 0x2D6, 0x80);
++						usleep_range(10000, 10000);
++						regmap_write(common->map, 0x2D6, 0x90);
++						//Needs to sleep for quite a while before register writes
++						usleep_range(200 * 1000, 200 * 1000 + 500);
++					}
++
+ 					gpiod_add_lookup_table(sensor_gpios);
+ 
++					dev_dbg(dev, "%s: register GMSL %c v4l2 i2c %s : 0x%x (flags=0x%x)...", __func__,
++						'A' + link_id,
++						subdev_pdata->board_info.type,
++						subdev_pdata->board_info.addr,
++						subdev_pdata->board_info.flags);
++
+ 					struct v4l2_subdev *subdev =
+ 						v4l2_i2c_new_subdev_board(sd->v4l2_dev,
+ 									  common->muxc->adapter[link_id],
+diff --git a/drivers/media/i2c/max9x/serdes.h b/drivers/media/i2c/max9x/serdes.h
+index 34ee7746..00c6d228 100644
+--- a/drivers/media/i2c/max9x/serdes.h
++++ b/drivers/media/i2c/max9x/serdes.h
+@@ -139,6 +139,7 @@ enum max9x_chip_type {
+ 	MAX96717,
+ 	MAX96724F,
+ 	MAX96724R,
++	MAX9295d,
+ };
+ 
+ enum max9x_serdes_type {
+-- 
+2.25.1
+

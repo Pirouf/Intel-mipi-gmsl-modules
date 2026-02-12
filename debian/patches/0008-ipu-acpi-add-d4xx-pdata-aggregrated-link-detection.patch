@@ -1,0 +1,410 @@
+From 7d4bae96a9a9a339bcf2134e5bdb68709ddbd2a3 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Wed, 25 Jun 2025 00:34:00 -0700
+Subject: [PATCH 08/80] ipu-acpi : add d4xx pdata aggregrated-link detection
+
+* serdes, sensor: use new naming convention : "<a|b|c|d>-<csi-port idx>"
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/platform/intel/Makefile         |   8 +
+ drivers/media/platform/intel/ipu-acpi-pdata.c | 146 ++++++++++++++++--
+ drivers/media/platform/intel/ipu-acpi.c       |  29 ++++
+ include/media/i2c/d4xx-max929x_pdata.h        |  19 +++
+ include/media/ipu-acpi-pdata.h                |  12 +-
+ include/media/serdes-pdata.h                  |   3 +
+ 6 files changed, 201 insertions(+), 16 deletions(-)
+ create mode 100644 include/media/i2c/d4xx-max929x_pdata.h
+
+diff --git a/drivers/media/platform/intel/Makefile b/drivers/media/platform/intel/Makefile
+index 041fcd80..7a37e0b4 100644
+--- a/drivers/media/platform/intel/Makefile
++++ b/drivers/media/platform/intel/Makefile
+@@ -5,3 +5,11 @@
+ obj-$(CONFIG_INTEL_IPU_ACPI)         += ipu-acpi.o \
+ 					ipu-acpi-pdata.o \
+ 					ipu-acpi-common.o
++
++ifeq ($(CONFIG_VIDEO_D4XX), m)
++	ccflags-y += -DCONFIG_VIDEO_D4XX
++endif
++
++ifeq ($(CONFIG_VIDEO_MAX9X), m)
++	ccflags-y += -DCONFIG_VIDEO_MAX9X
++endif
+diff --git a/drivers/media/platform/intel/ipu-acpi-pdata.c b/drivers/media/platform/intel/ipu-acpi-pdata.c
+index a4d87aa9..d64f1bff 100644
+--- a/drivers/media/platform/intel/ipu-acpi-pdata.c
++++ b/drivers/media/platform/intel/ipu-acpi-pdata.c
+@@ -20,6 +20,7 @@
+ #define SENSOR_2X_I2C 5
+ #define SUFFIX_BASE 97
+ #define MSG_LEN 128
++#define SUFFIX_BASE_OFFSET 5 // SERDES aggregated-link offset
+ 
+ static struct ipu_isys_subdev_pdata *ptr_built_in_pdata;
+ 
+@@ -122,6 +123,9 @@ static void print_serdes_sdinfo(struct serdes_subdev_info *sdinfo)
+ 	pr_debug("\t\tphy_i2c_addr \t\t= 0x%x", sdinfo->phy_i2c_addr);
+ 	pr_debug("\t\tser_alias \t\t= 0x%x", sdinfo->ser_alias);
+ 	pr_debug("\t\tser_phys_addr \t\t= 0x%x", sdinfo->ser_phys_addr);
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++	pr_debug("\t\taggregated_link \t= %u", sdinfo->aggregated_link);
++#endif
+ 	pr_debug("\t\tsuffix \t\t\t= %s", sdinfo->suffix);
+ 	pr_debug("\t\tboard_info.type \t= %s", sdinfo->board_info.type);
+ 	pr_debug("\t\tboard_info.addr \t= 0x%x", sdinfo->board_info.addr);
+@@ -630,13 +634,15 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
+ 		const char *hid_name,
+ 		unsigned int lanes,
+ 		unsigned int addr,
++		unsigned int port,
+ 		unsigned int subdev_num)
+ {
+ 	int i;
++	int serdes_suffix;
++	unsigned int suffix_offset;
+ 	struct serdes_module_pdata *module_pdata[PORT_NR];
+ 	struct serdes_subdev_info *serdes_sdinfo;
+ 	size_t subdev_size = subdev_num * sizeof(*serdes_sdinfo);
+-	unsigned int port = (*pdata)->suffix - SUFFIX_BASE;
+ 
+ 	if (subdev_num > PORT_NR) {
+ 		dev_err(dev, "IPU ACPI: Invalid subdev_num %u (max %d)\n",
+@@ -671,8 +677,86 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
+ 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
+ 
+ 		serdes_sdinfo[i].phy_i2c_addr = serdes_info.phy_i2c_addr;
+-		snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++		if (!strcmp(sensor_name, D457_NAME)) {
++			pr_debug("IPU ACPI:  %s current i2c_bdf %s serdes %d-%d, prior %s",
++				 sensor_name,
++				 serdes_info.i2c_adapter_bdf,
++				 serdes_info.deser_num,
++				 subdev_num,
++				 serdes_info.i2c_adapter_bdf_2);
++			pr_debug("IPU ACPI:  %s current i2c_addr 0x%x serdes %d-%d, prior 0x%x",
++				 sensor_name,
++				 serdes_info.des_map_addr,
++				 serdes_info.deser_num,
++				 subdev_num,
++				 serdes_info.des_map_addr_2);
++			pr_debug("IPU ACPI:  %s current i2c_addr 0x%x sensor %d-%d, prior 0x%x",
++				 sensor_name,
++				 serdes_info.sensor_map_addr,
++				 serdes_info.deser_num,
++				 subdev_num,
++				 serdes_info.sensor_map_addr_2);
++			/* define namespacing offset (suffix `e` -> `a-2`, suffix `e` w/ `degree`=90 -> `b-2` ), for :
++			 *   - pprunit > 1, set # of deserializer aggregated-link.
++			 *   - pprunit = 1, prior sensor_map_addr sensor_map_addr pdata already defined same deserializer, e.g same i2c-bus and i2c-addr,
++			 * 		 maps degree pdata > 90|180|270 to GMSL input offset
++			 *   - pprunit = 1, prior d4xx sensor_map_addr pdata already defined same deserializer, e.g same i2c-bus and i2c-addr,
++			 * 		 no degree pdata assumes max9296 and increment by 1
++			 */
++			if (( subdev_num == 1 ) && (i == 0) && ((*pdata)->des_port == 0) &&
++			    ( serdes_info.sensor_map_addr == serdes_info.sensor_map_addr_2 ) &&
++			    ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
++				serdes_sdinfo[i].aggregated_link = 1;
++				(*pdata)->des_port = 1;
++				serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1 + (*pdata)->des_port;
++				pr_info("IPU ACPI: Increment %s %c namespacing on aggregated-link sensors %d",
++					sensor_name,
++					serdes_suffix,
++					serdes_info.deser_num);
++			} else if (( subdev_num == 1 ) && (i == 0) &&
++			    ( serdes_info.sensor_map_addr == serdes_info.sensor_map_addr_2 ) &&
++			    ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
++				serdes_sdinfo[i].aggregated_link = 1;
++				serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1 + (*pdata)->des_port;
++				pr_info("IPU ACPI: Use degree=%u pdata in %s %c namespacing on aggregated-link sensors %d",
++					(*pdata)->des_port,
++					sensor_name,
++					serdes_suffix,
++					serdes_info.deser_num);
++			} else if ((*pdata)->des_port > 0) {
++			/*   - degree == 90|180|270, offset deserializer source link  */
++				pr_info("IPU ACPI: Use degree=%u pdata in %s %c namespacing",
++					(*pdata)->des_port,
++					sensor_name,
++					serdes_suffix);
++				serdes_sdinfo[i].aggregated_link = 0;
++				serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + (*pdata)->des_port;
++			} else {
++				serdes_sdinfo[i].aggregated_link = 0;
++				serdes_suffix = (*pdata)->suffix;
++			}
++			snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
++				 SUFFIX_BASE + i + (*pdata)->des_port , port);
++		} else {
++			if (i >= 1) {
++				serdes_sdinfo[i].aggregated_link = i;
++				serdes_suffix = (*pdata)->suffix + i;
++				pr_info("IPU ACPI: Add %s %cnamespacing on aggregated-link sensors %d",
++					sensor_name,
++					serdes_suffix,
++					serdes_info.deser_num);
++			} else {
++				serdes_sdinfo[i].aggregated_link = 0;
++				serdes_suffix = (*pdata)->suffix;
++			}
++			snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
++				 SUFFIX_BASE + i, port);
++		}
++#else
++	        snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
+ 			 SUFFIX_BASE + i, port);
++#endif
+ 		serdes_sdinfo[i].ser_phys_addr = serdes_info.ser_phys_addr;
+ 
+ 		memcpy(serdes_sdinfo[i].ser_gpio, serdes_info.ser_gpio, sizeof(struct gpiod_lookup) * MAX_SER_GPIO_NUM);
+@@ -685,7 +769,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
+ 	return 0;
+ }
+ 
+-static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
++int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 		struct device *dev,
+ 		const char *sensor_name,
+ 		const char *hid_name,
+@@ -698,7 +782,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 		bool is_dummy,
+ 		enum connection_type connect,
+ 		int link_freq,
+-		int des_port)
++		unsigned int degree)
+ {
+ 	if (connect == TYPE_DIRECT) {
+ 		struct sensor_platform_data *pdata;
+@@ -725,6 +809,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 	} else if (connect == TYPE_SERDES) {
+ 		struct serdes_platform_data *pdata;
+ 		int ret;
++		unsigned int des_port = (degree == 14) ? 270 : degree;
+ 
+ 		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+ 		if (!pdata)
+@@ -732,9 +817,19 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 
+ 		pr_debug("IPU ACPI: %s - Serdes connection", __func__);
+ 		/* use ascii */
+-		pdata->suffix = port + SUFFIX_BASE;
+-		pr_info("IPU ACPI: create %s on mipi port %d",
+-			sensor_name, port);
++		if (port >= 0) {
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++			if ((!strcmp(sensor_name, D457_NAME)) &&
++			     (degree == 90 ||
++			      degree == 180 ||
++			      degree == 14)) // 14 is equal to 270 (e.g. 255 byte overflow + 15)
++				des_port = (degree == 14) ? 3 :(degree / 90);
++#endif
++			pdata->suffix = port + SUFFIX_BASE;
++			pr_info("IPU ACPI: create %s on mipi port %d",
++				sensor_name, port);
++		} else
++			pr_err("IPU ACPI: Invalid MIPI Port : %d", port);
+ 
+ 		pdata->link_freq_mbps = link_freq;
+ 		pdata->bus_type = (*sensor_sd)->csi2->bus_type;
+@@ -742,7 +837,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 		pdata->ser_nlanes = lanes;
+ 		pdata->des_port = des_port;
+ 		strscpy(pdata->ser_name, (*sensor_sd)->i2c.board_info.type, I2C_NAME_SIZE);
+-		ret =set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, hid_name, lanes, addr, subdev_num);
++		ret =set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, hid_name, lanes, addr, port, subdev_num);
+ 		if (ret) {
+ 			kfree(pdata);
+ 			return ret;
+@@ -755,7 +850,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 	return 0;
+ }
+ 
+-static void set_serdes_info(struct device *dev, const char *sensor_name,
++void set_serdes_info(struct device *dev, const char *sensor_name,
+ 			    const char *serdes_name,
+ 			    struct sensor_bios_data *cam_data,
+ 			    int sensor_physical_addr,
+@@ -780,6 +875,24 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
+ 	/* sensor mapped addr */
+ 	serdes_info.sensor_map_addr = cam_data->i2c[i++].addr;
+ 
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++	/* serializer mapped addr */
++	if ( serdes_info.deser_num > 0 )
++		serdes_info.ser_map_addr_2 = serdes_info.ser_map_addr;
++	serdes_info.ser_map_addr = cam_data->i2c[cam_data->i2c_num - 2].addr;
++
++	/* deserializer mapped addr */
++	if ( serdes_info.deser_num > 0 )
++		serdes_info.des_map_addr_2 = serdes_info.des_map_addr;
++	serdes_info.des_map_addr = cam_data->i2c[cam_data->i2c_num - 3].addr;
++
++	/* serdes mapped i2c-adapter */
++	if ( serdes_info.deser_num > 0 )
++		strscpy(&serdes_info.i2c_adapter_bdf_2[0], serdes_info.i2c_adapter_bdf,
++			sizeof(serdes_info.i2c_adapter_bdf_2));
++	strscpy(&serdes_info.i2c_adapter_bdf[0], cam_data->i2c[cam_data->i2c_num - 1].bdf,
++		sizeof(serdes_info.i2c_adapter_bdf));
++#endif
+ 	serdes_info.gpio_powerup_seq = 0;
+ 
+ 	serdes_info.phy_i2c_addr = sensor_physical_addr;
+@@ -795,7 +908,7 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
+ 	serdes_info.sensor_dt = sensor_dt;
+ }
+ 
+-static int populate_sensor_pdata(struct device *dev,
++int populate_sensor_pdata(struct device *dev,
+ 			struct ipu_isys_subdev_info **sensor_sd,
+ 			struct sensor_bios_data *cam_data,
+ 			struct control_logic_data *ctl_data,
+@@ -863,16 +976,18 @@ static int populate_sensor_pdata(struct device *dev,
+ 	}
+ 
+ 	/* Use last I2C device */
+-	ret = set_pdata(sensor_sd, dev, sensor_name, hid_name, ctl_data, cam_data->link,
+-		cam_data->lanes, cam_data->i2c[cam_data->i2c_num - 1].addr,
+-		cam_data->pprunit, cam_data->pprval, false, connect, link_freq, cam_data->degree);
++	ret = set_pdata(sensor_sd, dev, sensor_name, hid_name, ctl_data,
++			cam_data->link,
++			cam_data->lanes,
++			cam_data->i2c[cam_data->i2c_num - 1].addr,
++			cam_data->pprunit,
++			cam_data->pprval,
++			false, connect, link_freq, cam_data->degree);
+ 	if (ret)
+ 		return ret;
+ 
+ 	update_pdata(dev, *sensor_sd, connect);
+ 
+-	/* Lontium specific */
+-
+ 	return 0;
+ }
+ 
+@@ -951,3 +1066,4 @@ EXPORT_SYMBOL(get_sensor_pdata);
+ MODULE_AUTHOR("Khai Wen, Ng <khai.wen.ng@intel.com>");
+ MODULE_LICENSE("GPL");
+ MODULE_DESCRIPTION("IPU ACPI support");
++MODULE_VERSION(DRIVER_VERSION_SUFFIX);
+diff --git a/drivers/media/platform/intel/ipu-acpi.c b/drivers/media/platform/intel/ipu-acpi.c
+index b2b34665..21b33118 100644
+--- a/drivers/media/platform/intel/ipu-acpi.c
++++ b/drivers/media/platform/intel/ipu-acpi.c
+@@ -53,6 +53,11 @@
+ #include <media/i2c/ar0234.h>
+ #endif
+ 
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++#include <media/i2c/d4xx_pdata.h>
++#include <media/i2c/d4xx-max929x_pdata.h>
++#endif
++
+ static LIST_HEAD(devices);
+ 
+ static struct ipu_camera_module_data *add_device_to_list(
+@@ -244,6 +249,27 @@ static const struct ipu_acpi_devices supported_devices[] = {
+ 	},// AR0234 HID
+ #endif
+ #endif
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++		.hid_name = "INTC10CD",
++		.real_driver = D457_NAME,
++		.get_platform_data = get_sensor_pdata,
++		.priv_data = NULL,
++		.priv_size = 0,
++		.connect = TYPE_SERDES,
++		.serdes_name = D457_NAME,
++		.sensor_physical_addr = D457_I2C_ADDRESS,
++		.link_freq = 1600,
++		.ser_physical_addr = 0x40,
++		.ser_gpio = {
++			{
++				.chip_hwnum = 0,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW,
++			},
++		},
++		.sensor_dt = MIPI_CSI2_TYPE_YUV422_8,
++	},// D457 HID
++#endif
+ };
+ 
+ static int get_table_index(const char *acpi_name)
+@@ -277,6 +303,9 @@ static const struct acpi_device_id ipu_acpi_match[] = {
+ #endif
+ #if IS_ENABLED(CONFIG_VIDEO_AR0234)
+ 	{ "INTC0234", 0 },
++#endif
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++	{ "INTC10CD", 0 },	// D457 HID
+ #endif
+ 	{},
+ };
+diff --git a/include/media/i2c/d4xx-max929x_pdata.h b/include/media/i2c/d4xx-max929x_pdata.h
+new file mode 100644
+index 00000000..89a86641
+--- /dev/null
++++ b/include/media/i2c/d4xx-max929x_pdata.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/* Copyright (C) 2024 Intel Corporation */
++
++#ifndef MAX929X_H
++#define MAX929X_H
++
++#define MAX929X_NAME "max929x"
++#define MAX9295_I2C_ADDRESS 0x40
++
++/* set this flag if this module needs serializer initialization */
++#define MAX9295_FL_INIT_SER	BIT(0)
++/* set this flag if this module has extra powerup sequence */
++#define MAX9295_FL_POWERUP	BIT(1)
++/* set this flag if this module needs reset signal */
++#define MAX9295_FL_RESET	BIT(2)
++/* set this flag if it need to init serial clk only */
++#define MAX9295_FL_INIT_SER_CLK	BIT(4)
++
++#endif
+diff --git a/include/media/ipu-acpi-pdata.h b/include/media/ipu-acpi-pdata.h
+index 53ce05a4..cc19ba63 100644
+--- a/include/media/ipu-acpi-pdata.h
++++ b/include/media/ipu-acpi-pdata.h
+@@ -106,6 +106,16 @@ struct serdes_local {
+ 
+ 	/* sensor data type */
+ 	unsigned int sensor_dt;
++
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++	/* last deserializer mapped addr */
++	unsigned short des_map_addr;
++	unsigned short des_map_addr_2;
++
++	/* last mapped i2c_adapter */
++	char i2c_adapter_bdf[32];
++	char i2c_adapter_bdf_2[32];
++#endif
+ };
+ 
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/include/media/serdes-pdata.h b/include/media/serdes-pdata.h
+index 4f6d5fb0..ca321b00 100644
+--- a/include/media/serdes-pdata.h
++++ b/include/media/serdes-pdata.h
+@@ -16,6 +16,9 @@ struct serdes_subdev_info {
+ 	unsigned short ser_phys_addr;
+ 	unsigned int sensor_dt;
+ 	struct gpiod_lookup ser_gpio[MAX_SER_GPIO_NUM];
++#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++	unsigned short aggregated_link;
++#endif
+ };
+ 
+ struct serdes_platform_data {
+-- 
+2.25.1
+

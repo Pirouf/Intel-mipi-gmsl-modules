@@ -1,0 +1,55 @@
+From 27da2e011213eb6fb4bd8cbd527576ffb1548fe8 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Mon, 31 Aug 2026 11:15:10 -0700
+Subject: [PATCH 75/80] makefile: compile d4xx-compat on skip maxim-serdes
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ Makefile | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 61f99b15..75ba8bb4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -33,7 +33,7 @@ KERNEL_GE_6_17 := $(shell ([ $(KERNEL_VERSION) -gt 6 ] || ([ $(KERNEL_VERSION) -
+ # Set for Intel BKC kernels that should skip maxim-serdes.
+ KERNEL_IS_6_12_INTEL := $(shell ([ $(KERNEL_VERSION) -eq 6 ] && [ $(KERNEL_PATCHLEVEL) -eq 12 ] && echo $(KERNELRELEASE) | grep -q -- '-intel') && echo 1 || echo 0)
+ KERNEL_IS_6_17_INTEL := $(shell ([ $(KERNEL_VERSION) -eq 6 ] && [ $(KERNEL_PATCHLEVEL) -eq 17 ] && echo $(KERNELRELEASE) | grep -q -- '-intel') && echo 1 || echo 0)
+-KERNEL_SKIP_MAXIM_SERDES := $(shell ([ $(KERNEL_IS_6_12_INTEL) -eq 1 ] || [ $(KERNEL_IS_6_17_INTEL) -eq 1 ]) && echo 1 || echo 0)
++KERNEL_SKIP_MAXIM_SERDES := $(shell ([ $(SKIP_MAXIM_SERDES) -eq 1 ] || [ $(KERNEL_IS_6_12_INTEL) -eq 1 ] || [ $(KERNEL_IS_6_17_INTEL) -eq 1 ]) && echo 1 || echo 0)
+ 
+ export EXTERNAL_BUILD = 1
+ export CONFIG_IPU_BRIDGE=m
+@@ -54,16 +54,16 @@ export CONFIG_INTEL_IPU_ACPI=m
+ # rebuild that kernel with CONFIG_I2C_ATR=y to use maxim-serdes.
+ # Skip only on 6.17-intel in this block.
+ # 6.18-intel is allowed (WIP in BKC to enable CONFIG_I2C_ATR).
+-ifeq ($(KERNEL_GE_6_17),1)
+ ifneq ($(KERNEL_SKIP_MAXIM_SERDES),1)
++ifeq ($(KERNEL_GE_6_17),1)
+ export CONFIG_VIDEO_MAXIM_SERDES=m
+ export CONFIG_VIDEO_MAX96717=m
+ export CONFIG_VIDEO_MAX96724=m
+ export CONFIG_VIDEO_MAX9296A=m
+-endif
+-endif
+-export CONFIG_MEDIA_CONTROLLER=m
+ export CONFIG_VIDEO_D4XX=m
++export CONFIG_MEDIA_CONTROLLER=m
++endif
++else
+ export CONFIG_INTEL_IPU_VC_EXT=y
+ export CONFIG_VIDEO_D4XX_MAX9295_VC_EXT = n
+ export CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT = y
+@@ -71,6 +71,7 @@ export CONFIG_VIDEO_D4XX_MAX9295 = m
+ export CONFIG_VIDEO_D4XX_MAX9296 = m
+ export CONFIG_VIDEO_D4XX_COMPAT=m
+ export CONFIG_VIDEO_D4XX_MAX96724 = m
++endif
+ 
+ # Define config macros for conditional compilation in ipu-acpi.c
+ # IS_ENABLED() checks for CONFIG_XXX or CONFIG_XXX_MODULE
+-- 
+2.25.1
+
