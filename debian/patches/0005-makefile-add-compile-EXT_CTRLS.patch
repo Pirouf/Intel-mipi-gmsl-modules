@@ -1,0 +1,38 @@
+From 41542ee2b66922b14b28e189e796a44f1e88b70d Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 5 May 2026 11:36:25 -0700
+Subject: [PATCH 05/80] makefile: add compile EXT_CTRLS
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ Makefile | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 9909137b..32e0c54b 100644
+--- a/Makefile
++++ b/Makefile
+@@ -88,13 +88,17 @@ ccflags-y := -I$(src)/include
+ # IPU7 driver configs
+ export CONFIG_VIDEO_INTEL_IPU7=m
+ export CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET=n
++export CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET=y
+ export CONFIG_VIDEO_INTEL_IPU6=m
+-export CONFIG_VIDEO_INTEL_IPU6_ISYS_RESET=y
++export CONFIG_VIDEO_INTEL_IPU6_EXT_CTRLS=y
++export CONFIG_VIDEO_INTEL_IPU7_EXT_CTRLS=y
+ 
+-subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU7) += -DCONFIG_VIDEO_INTEL_IPU7 -DIPU8_INSYS_NEW_ABI -DENABLE_FW_OFFLINE_LOGGER
++subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU7) += -DCONFIG_VIDEO_INTEL_IPU7 -DIPU8_INSYS_NEW_ABI -DENABLE_FW_OFFLINE_LOGGER -DCONFIG_DEBUG_FS
+ subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET) += -DCONFIG_VIDEO_INTEL_IPU7_ISYS_RESET
+-subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU6) += -DCONFIG_VIDEO_INTEL_IPU6
++subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU7_EXT_CTRLS) += -DCONFIG_VIDEO_INTEL_IPU7_EXT_CTRLS
++subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU6) += -DCONFIG_VIDEO_INTEL_IPU6 -DCONFIG_DEBUG_FS
+ subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU6_ISYS_RESET) += -DCONFIG_VIDEO_INTEL_IPU6_ISYS_RESET
++subdir-ccflags-$(CONFIG_VIDEO_INTEL_IPU6_EXT_CTRLS) += -DCONFIG_VIDEO_INTEL_IPU6_EXT_CTRLS
+ 
+ # Build IPU7 drivers from submodule
+ obj-$(CONFIG_VIDEO_INTEL_IPU7) += ipu7-drivers/drivers/media/pci/intel/ipu7/
+-- 
+2.25.1
+

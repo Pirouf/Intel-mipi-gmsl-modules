@@ -1,0 +1,31 @@
+From 905b3fe594a7be63fc7640fe580c8c782aedb1b4 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 30 Jan 2026 10:37:20 -0700
+Subject: [PATCH 40/80] d4xx-compat: fix default v4l2 vc_id to stream_id
+ mapping
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index e407563d..558f9fd3 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -3755,10 +3755,10 @@ error:
+ 
+ #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
+ #ifdef CONFIG_VIDEO_D4XX_MAX96724
+-static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,1,2,3, 2,3,0,1, 1,0,2,3, 3,2,0,1};
++static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,1,2,3, 2,3,0,1, 1,0,3,2, 3,2,1,0};
+ module_param_array(sensor_vc, ushort, NULL, 0444);
+ MODULE_PARM_DESC(sensor_vc, "VC set for sensors\n"
+-		"\t\tsensor_vc=0,1,2,3,2,3,0,1,1,0,2,3,3,2,0,1");
++		"\t\tsensor_vc=0,1,2,3,2,3,0,1,1,0,3,2,3,2,1,0");
+ #else
+ static short sensor_vc[NR_OF_DS5_STREAMS * 2] = {0,1,2,3, 2,3,0,1};
+ module_param_array(sensor_vc, ushort, NULL, 0444);
+-- 
+2.25.1
+
