@@ -1,0 +1,157 @@
+From ff3192ddf1c8d829595d3224d327fe63d1f773ea Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 21 Jul 2026 12:22:52 -0700
+Subject: [PATCH 69/80] d4xx-max96724: init port i2c reply timeout
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx-max96724.c | 93 ++++++++++++++++++-
+ 1 file changed, 89 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+index 03724bd4..92a57c50 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+@@ -30,6 +30,7 @@
+ 	})
+ 
+ 
++#define MAX96724_REG1_ADDR 0x0001  /* I2C port control */
+ #define MAX96724_REG3_ADDR 0x0003  /* I2C Remote Control Channel Enable */
+ #define MAX96724_REG5_ADDR 0x0005
+ #define MAX96724_REG4_ADDR 0x0004
+@@ -51,9 +52,28 @@
+ #define MAX96724_REG17_CTRL_EN_FIELD BIT(2)
+ #define MAX96724_REG19_CTRL_EN_FIELD BIT(4)
+ 
++#define MAX96724_DIS_LOC_CC MAX96724_REG1_ADDR
++#define MAX96724_DIS_LOC_CC_DIS_PORT_FIELD(port) BIT(MAX96724_FLD_OFS(2, 2, 4) + (port % 2))
+ #define MAX96724_REM_CC MAX96724_REG3_ADDR
+ #define MAX96724_REM_CC_DIS_PORT_FIELD(link, port) BIT(MAX96724_FLD_OFS(link, 2, 4) + (port % 2))
+ 
++#define MAX96724_CC_G2P0_ADDR 0x0640
++#define MAX96724_CC_G2P1_ADDR 0x0680
++#define MAX96724_CC_SLV_SH_P0_ADDR(link) (MAX96724_CC_G2P0_ADDR + ((link) * 0x10))
++#define MAX96724_CC_MST_BT_P0_ADDR(link) (MAX96724_CC_SLV_SH_P0_ADDR(link) + 0x01)
++#define MAX96724_CC_SLV_SH_P1_ADDR(link) (MAX96724_CC_G2P1_ADDR + ((link) * 0x10))
++#define MAX96724_CC_MST_BT_P1_ADDR(link) (MAX96724_CC_SLV_SH_P1_ADDR(link) + 0x01)
++#define MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD GENMASK(2, 0)
++#define MAX96724_CC_I2C_REPLY_TIMEOUT_4MS 0x3
++#define MAX96724_CC_I2C_REPLY_TIMEOUT_16MS 0x6
++#define MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD GENMASK(5, 4)
++#define MAX96724_CC_I2C_MST_SPEEDMODE_FIELD GENMASK(6, 4)
++#define MAX96724_CC_I2C_MST_BITRATE_100KHZ 0x2
++#define MAX96724_CC_I2C_MST_BITRATE_400KHZ 0x5
++#define MAX96724_CC_I2C_SLV_FASTMODEPLUS 0x0
++#define MAX96724_CC_I2C_SLV_FASTMODE 0x1
++#define MAX96724_CC_I2C_SLV_STDMODE 0x2
++
+ #define MAX96724_LINK_CTRL_ADDR MAX96724_REG6_ADDR
+ #define MAX96724_LINK_CTRL_GMSL_FIELD(link) BIT(link) << 4
+ #define MAX96724_LINK_CTRL_EN_FIELD(link) BIT(link)
+@@ -1104,10 +1124,10 @@ int max96724_setup_link(struct device *dev, struct device *s_dev)
+ 		return err;
+ 	}
+ 
+-	src_port = (u8) i;
+ 	link = priv->sources[i].g_ctx->serdes_csi_link;
++	src_port = max96724_link_to_port(link);
+ 
+-	dev_info(dev, "%s: Source index=%u, link=%s\n", __func__, src_port,
++	dev_info(dev, "%s: source[%u]=link[%u]=%s\n", __func__, i, src_port,
+ 		 max96724_get_link_name(link));
+ 
+ 	mutex_lock(&priv->lock);
+@@ -1115,6 +1135,18 @@ int max96724_setup_link(struct device *dev, struct device *s_dev)
+ 	if (priv->splitter_enabled)
+ 		goto reset;
+ 
++	/* Disable i2c port 1 match MAX9295 serializer
++	 */
++	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_DIS_LOC_CC,
++			   MAX96724_DIS_LOC_CC_DIS_PORT_FIELD(1),
++			   MAX96724_FIELD_PREP(MAX96724_DIS_LOC_CC_DIS_PORT_FIELD(1), 1U));
++	if (err) {
++		dev_err(dev, "%s: Failed to disable i2c link port 1 : %d\n",
++			__func__,
++			err);
++		goto ret;
++	}
++
+ 	/* Configure 6Gbps GMSL2 mode BEFORE reset to match MAX9295 serializer
+ 	 * Reference script: enable_6g sets 0x0010=0x22, 0x0011=0x22
+ 	 * These are CTRL0 and CTRL1 registers for GMSL2 6Gbps PHY rate
+@@ -1260,6 +1292,61 @@ int max96724_setup_link(struct device *dev, struct device *s_dev)
+ 
+ reset:
+ 
++#ifdef CONFIG_VIDEO_D4XX_I2C_FASTMODE
++	/* initialize GMSL i2c fast-mode 400khz
++	*/
++	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_SLV_SH_P0_ADDR(src_port),
++			   MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD, MAX96724_CC_I2C_SLV_FASTMODEPLUS)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_4MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_MST_BT_P0_ADDR(src_port),
++			   MAX96724_CC_I2C_MST_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_MST_SPEEDMODE_FIELD, MAX96724_CC_I2C_MST_BITRATE_400KHZ)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_4MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_SLV_SH_P1_ADDR(src_port),
++			   MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD, MAX96724_CC_I2C_SLV_FASTMODEPLUS)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_4MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_MST_BT_P1_ADDR(src_port),
++			   MAX96724_CC_I2C_MST_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_MST_SPEEDMODE_FIELD, MAX96724_CC_I2C_MST_BITRATE_400KHZ)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_4MS));
++#else
++	/* initialize  GMSL i2c standard-mode 100khz
++	*/
++	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_SLV_SH_P0_ADDR(src_port),
++			   MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD, MAX96724_CC_I2C_SLV_STDMODE)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_16MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_MST_BT_P0_ADDR(src_port),
++			   MAX96724_CC_I2C_MST_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_MST_SPEEDMODE_FIELD, MAX96724_CC_I2C_MST_BITRATE_100KHZ)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_16MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_SLV_SH_P1_ADDR(src_port),
++			   MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_SLV_SPEEDMODE_FIELD, MAX96724_CC_I2C_SLV_STDMODE)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_16MS));
++	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CC_MST_BT_P1_ADDR(src_port),
++			   MAX96724_CC_I2C_MST_SPEEDMODE_FIELD
++			   | MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD,
++			   MAX96724_FIELD_PREP(MAX96724_CC_I2C_MST_SPEEDMODE_FIELD, MAX96724_CC_I2C_MST_BITRATE_100KHZ)
++			   | MAX96724_FIELD_PREP(MAX96724_CC_I2C_REPLY_TIMEOUT_FIELD, MAX96724_CC_I2C_REPLY_TIMEOUT_16MS));
++#endif
++	if (err) {
++		dev_err(dev, "%s: Failed to set  %s i2c link  speed-mode: %d\n",
++			__func__,
++			max96724_get_link_name(link),
++			err);
++		goto ret;
++	}
++
+ 	// Enable GMSL2 input sources links state
+ 	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_LINK_CTRL_ADDR,
+ 			   MAX96724_LINK_CTRL_EN_FIELD(src_port),
+@@ -1297,8 +1384,6 @@ reset:
+ 	// delay to settle link
+ 	msleep(300);
+ 
+-	//err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
+-	//		~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(src_port, 0), 1U)));
+ 	switch (link) {
+ 	case GMSL_SERDES_CSI_LINK_A:
+ 		err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,0xFE);
+-- 
+2.25.1
+

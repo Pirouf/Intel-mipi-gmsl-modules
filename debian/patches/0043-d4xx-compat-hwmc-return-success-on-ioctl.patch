@@ -1,0 +1,33 @@
+From 423c210a7a26e692a9191be7a3370d2d7e3f6f80 Mon Sep 17 00:00:00 2001
+From: Dmitry Perchanov <dmitry.perchanov@intel.com>
+Date: Wed, 20 Mar 2024 14:18:46 +0200
+Subject: [PATCH 43/80] d4xx-compat: hwmc return success on ioctl
+
+LRS expects success on hwmc ioctl call.
+
+[Error] /tmp/sandbox/src/librealsense-exception.h:52 - xioctl(VIDIOC_G_EXT_CTRLS) failed Last Error: Bad message
+
+Signed-off-by: Dmitry Perchanov <dmitry.perchanov@intel.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index 9b009b80..2cf8ac16 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -2990,8 +2990,10 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+ 				ret = 0;
+ 				break;
+ 			}
+-			if (ret)
++			if (ret) {
++				ret = 0; // LRS doesn't expect to get errors with HWMC
+ 				break;
++			}
+ 			/* This is needed for librealsense, to align there code with UVC,
+ 		 	 * last word is length - 4 bytes header length */
+ 			dataLen -= 4;
+-- 
+2.25.1
+
