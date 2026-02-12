@@ -1,0 +1,26 @@
+From 3167e6deeef2af9f255a3b46e1b395564fd3df30 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Wed, 22 Jul 2026 09:15:27 -0700
+Subject: [PATCH 069/122] d4xx-compat: set GMSL i2c fast-mode 400KHz link
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 355bcc3a..b10f118e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -80,7 +80,7 @@ export CONFIG_VIDEO_D4XX_MAX96724 = m
+ subdir-ccflags-$(CONFIG_VIDEO_MAX9X) += -DCONFIG_VIDEO_MAX9X
+ subdir-ccflags-$(CONFIG_VIDEO_ISX031) += -DCONFIG_VIDEO_ISX031
+ subdir-ccflags-$(CONFIG_VIDEO_AR0233) += -DCONFIG_VIDEO_AR0233
+-subdir-ccflags-$(CONFIG_VIDEO_D4XX_COMPAT) += -DCONFIG_VIDEO_D4XX
++subdir-ccflags-$(CONFIG_VIDEO_D4XX_COMPAT) += -DCONFIG_VIDEO_D4XX -DCONFIG_VIDEO_D4XX_I2C_FASTMODE
+ subdir-ccflags-$(CONFIG_VIDEO_D4XX_MAX9295_VC_EXT) += -DCONFIG_VIDEO_D4XX_MAX9295_VC_EXT
+ subdir-ccflags-$(CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT) += -DCONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT -DCONFIG_VIDEO_D4XX_MAX96712_LEGACY
+ subdir-ccflags-$(CONFIG_VIDEO_AR0820) += -DCONFIG_VIDEO_AR0820
+-- 
+2.43.0
+

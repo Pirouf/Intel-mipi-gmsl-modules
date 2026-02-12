@@ -1,0 +1,26 @@
+From 9639e839aae89c5de1ddfbc699b2b7bf1d6a1fc7 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 11 Sep 2026 08:05:03 -0700
+Subject: [PATCH 081/122] scripts: add missing streamid for set-fmt
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ script/acpi/mc-setup.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/script/acpi/mc-setup.sh b/script/acpi/mc-setup.sh
+index dd9533f7..5fc5803b 100755
+--- a/script/acpi/mc-setup.sh
++++ b/script/acpi/mc-setup.sh
+@@ -1545,7 +1545,7 @@ for k in "${!CFG_LINKS[@]}"; do
+ 
+         case "$model" in
+             d4xx)
+-                mc_v "\"D4XX ${s} ${cam}\":0 [fmt:${fmt}/${size} field:none]"
++                mc_v "\"D4XX ${s} ${cam}\":0/0 [fmt:${fmt}/${size} field:none]"
+                 ;;
+             isx031)
+                 mc_v "\"isx031 ${cam}\":0/${sid} [fmt:${fmt}/${size} field:none]"
+-- 
+2.43.0
+

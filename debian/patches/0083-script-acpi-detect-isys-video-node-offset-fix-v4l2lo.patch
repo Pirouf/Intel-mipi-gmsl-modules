@@ -1,0 +1,92 @@
+From 219aa17148815d89ffd79a0e585c21dd6dc0cf4c Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 15 Sep 2026 06:41:49 -0700
+Subject: [PATCH 083/122] script: acpi: detect isys video node offset, fix
+ v4l2loopback modprobe precedence
+
+* mc-setup.sh: inherite the initial /dev/videoX ISYS v4l2 Capture device mapping
+```
+/dev/video1
+```
+v4l2loopback or uvc may take precedence over `/dev/video0` mapping
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ script/acpi/mc-setup.sh | 20 ++++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/script/acpi/mc-setup.sh b/script/acpi/mc-setup.sh
+index 5fc5803b..f5f0aadb 100755
+--- a/script/acpi/mc-setup.sh
++++ b/script/acpi/mc-setup.sh
+@@ -330,6 +330,10 @@ declare -a DES_PATH=() DES_BA=() DES_PREFIX_NAME=() DES_SRC_PAD=()
+ declare -a IPU_CSI2_ENTITY=() IPU_BASE=() CAPTURE_BASE=()
+ NUM_DES=0
+ 
++# get IPU CSI2 ISYS Capture  /dev/video initial offset
++PREFIX=$(v4l2-ctl --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
++VID_DEV_OFFSET=$(media-ctl -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
++
+ # Per-link associative arrays keyed by "d_l" (deserializer index, link index):
+ declare -A SER_PATH=() CAM_PATH=()
+ declare -A SER_BA=()  CAM_BA=()
+@@ -690,11 +694,12 @@ detect_gmsl_csi2() {
+ 
+ print_topology() {
+     echo "Discovered topology:"
+-    local d l key
++    local d l key vid_node
+     for d in "${!DES_PATH[@]}"; do
++	vid_node=$(( CAPTURE_BASE[$d] + VID_DEV_OFFSET ))
+         printf "  DES%d  %-34s %s %s -> %s (capture base /dev/video%s)\n" \
+             "$d" "${DES_PATH[$d]}" "${DES_PREFIX_NAME[$d]}" "${DES_BA[$d]}" \
+-            "${IPU_CSI2_ENTITY[$d]}" "${CAPTURE_BASE[$d]}"
++            "${IPU_CSI2_ENTITY[$d]}" "$vid_node"
+         for l in ${LINKS_OF[$d]}; do
+             key="${d}_${l}"
+             printf "    SER%d  %-34s %s %s\n" \
+@@ -707,9 +712,10 @@ print_topology() {
+     [ "$NUM_MIPI" -eq 0 ] \
+         || echo "  Direct MIPI cameras (select with mipi=N):"
+     for i in "${!MIPI_PATH[@]}"; do
++	vid_node=$(( MIPI_CAP[$i] + VID_DEV_OFFSET ))
+         printf "  MIPI%d  %s %s -> %s (capture /dev/video%s)\n" \
+             "$i" "${MIPI_PREFIX[$i]}" "${MIPI_BA[$i]}" \
+-            "${MIPI_CSI2[$i]}" "${MIPI_CAP[$i]}"
++            "${MIPI_CSI2[$i]}" "$vid_node"
+     done
+     echo ""
+ }
+@@ -1419,10 +1425,11 @@ for k in "${!CFG_LINKS[@]}"; do
+         else
+             node=$(( CAPTURE_BASE[d] + CSI2_PAD["${k}_${s}"] ))
+         fi
++        vid_node=$(( node + VID_DEV_OFFSET ))
+         printf "                 Stream          %-8s %-10s %-12s %7s FPS -->  /dev/video%s\n" \
+             "[${s}]" "${CFG_STREAM_SIZE["${k}_${s}"]}" \
+             "${CFG_STREAM_FMT["${k}_${s}"]}" \
+-            "${CFG_STREAM_FPS["${k}_${s}"]}" "$node"
++            "${CFG_STREAM_FPS["${k}_${s}"]}" "$vid_node"
+     done
+ done
+ 
+@@ -1584,13 +1591,14 @@ for k in "${!CFG_LINKS[@]}"; do
+         else
+             node=$(( CAPTURE_BASE[${CFG_DES[$k]}] + CSI2_PAD["${k}_${s}"] ))
+         fi
++        vid_node=$(( node + VID_DEV_OFFSET ))
+         pixfmt=${CFG_STREAM_PIXFMT["${k}_${s}"]}
+         [ -z "$pixfmt" ] && continue
+         size=${CFG_STREAM_SIZE["${k}_${s}"]}
+         w=${size%x*}
+         h=${size#*x}
+-        v4l2-ctl -d "/dev/video${node}" \
++        v4l2-ctl -d "/dev/video${vid_node}" \
+             --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
+-            >/dev/null || die "cannot set /dev/video${node} to ${pixfmt} ${size}"
++            >/dev/null || die "cannot set /dev/video${vid_node} to ${pixfmt} ${size}"
+     done
+ done
+-- 
+2.43.0
+

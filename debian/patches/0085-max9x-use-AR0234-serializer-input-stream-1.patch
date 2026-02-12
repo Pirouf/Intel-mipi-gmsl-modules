@@ -1,0 +1,59 @@
+From ba46cab29976f6600c18a8b57f827307405181f8 Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Tue, 22 Sep 2026 16:46:43 +0800
+Subject: [PATCH 085/122] max9x: use AR0234 serializer input stream 1
+
+Use serializer input stream 1 for AR0234 when programming routes and formats, matching the currently validated ZED X bind helper.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ debian/helpers/ipu_max9x_bind.sh | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/debian/helpers/ipu_max9x_bind.sh b/debian/helpers/ipu_max9x_bind.sh
+index 486a3282..19126f77 100755
+--- a/debian/helpers/ipu_max9x_bind.sh
++++ b/debian/helpers/ipu_max9x_bind.sh
+@@ -202,6 +202,8 @@ for camera in $mux_list; do
+ 
+ 	csi2="$((${camera:2:1}))"
+ 	mux=${camera:0:1}
++	ser_input_streamid=${ser_streamid}
++	[[ ${sensor} = "ar0234" ]] && ser_input_streamid=1
+ 
+ 	echo "Bind $cap_prefix to ${sensor} ${camera} through max9x ${ser_suffix}-${csi2} and max9x ${des_suffix}  .. " >&2
+ 
+@@ -223,15 +225,15 @@ for camera in $mux_list; do
+ 	# subdev entity '['pad-number '/' stream-number '->' pad-number '/' stream-number '[' route-flags ']' ']' ;
+ 	if [ $ser_streamid -eq 0 ]; then
+ 	    if [ "${mux}" \=  "${ser_suffix}" ]; then
+-		ser_route="0/${ser_streamid}->2/${streamid}[1]"
++		ser_route="0/${ser_input_streamid}->2/${streamid}[1]"
+ 	    else
+-		ser_route="1/${ser_streamid}->2/${streamid}[1]"
++		ser_route="1/${ser_input_streamid}->2/${streamid}[1]"
+ 	    fi
+ 	else
+ 	    if [ "${mux}" \=  "${ser_suffix}" ]; then
+-		ser_route=${ser_route}",0/${ser_streamid}->2/${streamid}[1]"
++		ser_route=${ser_route}",0/${ser_input_streamid}->2/${streamid}[1]"
+ 	    else
+-		ser_route=${ser_route}",1/${ser_streamid}->2/${streamid}[1]"
++		ser_route=${ser_route}",1/${ser_input_streamid}->2/${streamid}[1]"
+ 	    fi
+ 	fi
+ 	des_pad=$(des_sink_pad ${camera})
+@@ -249,8 +251,8 @@ for camera in $mux_list; do
+ 	out $media_ctl_cmd -R "\"Intel ${cap_prefix} CSI2 ${csi2}\"[${csi_route}]"
+ 
+ 	#out $media_ctl_cmd -V "$(sen_src_pad ${camera})/${ser_streamid} ${fmt}"
+-	out $media_ctl_cmd -V "$(sen_src_pad ${camera})/0 ${fmt}"
+-	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/${ser_streamid} ${fmt}"
++	out $media_ctl_cmd -V "$(sen_src_pad ${camera})/${ser_input_streamid} ${fmt}"
++	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/${ser_input_streamid} ${fmt}"
+ 	out $media_ctl_cmd -V "$(ser_src_pad ${camera})/${streamid} ${fmt}"
+ 	out $media_ctl_cmd -V "$(des_sink_pad ${camera})/${streamid} ${fmt}"
+ 	out $media_ctl_cmd -V "$(des_src_pad ${camera})/${streamid} ${fmt}"
+-- 
+2.43.0
+

@@ -1,0 +1,695 @@
+From f6277bb11792e8bf16e65563f2a1794445a97457 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 13 Nov 2026 06:50:22 -0700
+Subject: [PATCH 117/122] acpi: ipu6: add initial adv mioe DES0 max9296
+ ssdt-overlays
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ acpi/ipu6/_des_ch_common_zedx.asl             | 113 ++++++++
+ acpi/ipu6/_ser_common_max9295.asl             |  60 +++-
+ acpi/ipu6/_ser_common_max9295d.asl            | 259 ++++++++++++++++++
+ .../max9296-adv-mioe_sl_ar0234_stereo.asl     | 165 +++++++++++
+ 4 files changed, 587 insertions(+), 10 deletions(-)
+ create mode 100644 acpi/ipu6/_des_ch_common_zedx.asl
+ create mode 100644 acpi/ipu6/_ser_common_max9295d.asl
+ create mode 100644 acpi/ipu6/max9296-adv-mioe_sl_ar0234_stereo.asl
+
+diff --git a/acpi/ipu6/_des_ch_common_zedx.asl b/acpi/ipu6/_des_ch_common_zedx.asl
+new file mode 100644
+index 00000000..8cd0f927
+--- /dev/null
++++ b/acpi/ipu6/_des_ch_common_zedx.asl
+@@ -0,0 +1,113 @@
++// SPDX-License-Identifier: GPL-2.0
++// Copyright (c) 2025 Intel Corporation.
++//
++// Common template for ZEDX deserializer ATR channel device.
++// Uses IASL C-preprocessor macros to eliminate per-channel file duplication.
++//
++// DES-level defines (set once before all channels, caller undefs after):
++//   DESCH_SER_I2C     - Serializer I2C address (e.g., 0x40)
++//   DESCH_DES_PATH    - DES ACPI path string (e.g., "\\_SB.PC00.DES0")
++//   DESCH_DES_REF     - DES ACPI namespace reference (e.g., \_SB.PC00.DES0)
++//
++// Channel-level defines (set per channel, auto-cleaned by this template):
++//   DESCH_LINK_NUM    - Channel number (0, 1, 2, 3) - used for _ADR, reg, and SER remote port
++//   DESCH_CH          - Channel device name (e.g., CH00)
++//   DESCH_SER         - Serializer device name (e.g., SER0)
++//   DESCH_CAM         - Camera device name (e.g., CAM0)
++//   DESCH_CH_PATH     - Channel ACPI path string (e.g., "\\_SB.PC00.DES0.CH00")
++//   DESCH_SER_PATH    - Serializer ACPI path string (e.g., "\\_SB.PC00.DES0.CH00.SER0")
++//   DESCH_SER_REF     - Serializer ACPI namespace reference (e.g., \_SB.PC00.DES0.CH00.SER0)
++//   DESCH_SER_GPIOREF - GPIO reference for CAM reset (e.g., ^^SER0)
++//
++// Optional defines:
++//   DESCH_EXTRA_GPIO_PIN  - Additional GPIO pin number (e.g., 7 for fsin)
++//   DESCH_CAM_FSIN_GPIO   - If defined, adds fsin-gpios property to CAM _DSD
++
++Device (DESCH_CH)
++{
++    Name (_ADR, DESCH_LINK_NUM) // _ADR: Address for the channel (e.g. 0 for Link 0, 1 for Link 1)
++    Name (_DSD, Package ()
++    {
++        ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++        Package ()
++        {
++            Package () { "reg", DESCH_LINK_NUM },       // used by i2c-atr driver. Represents the channel / link number
++        }
++    })
++
++    Device (DESCH_SER)
++    {
++        #include "_ser_common_max9295d.asl"
++
++        Device (CH00)
++        {
++            Name (_ADR, 0)
++            Name (_DSD, Package ()
++            {
++                ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++                Package ()
++                {
++                    Package () { "reg", 0 },
++                }
++            })
++            Device (CAM0)
++            {
++                #define SERCH_CAM_I2C 0x10
++                #define CAM_CSI_REMOTE_PORT 1
++                #define DESCH_SER_GPIORESETID 0
++                #include "_cam_common_ar0234.asl"
++                #undef DESCH_CAM_FSIN_GPIO
++                #undef DESCH_SER_GPIORESETID
++                #undef DESCH_SER_GPIOFSINID
++                #undef CAM_CSI_REMOTE_PORT
++                #undef SERCH_CAM_I2C
++            }
++        }
++
++        Device (CH01)
++        {
++            Name (_ADR, 1)
++            Name (_DSD, Package ()
++            {
++                ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++                Package ()
++                {
++                    Package () { "reg", 1 },
++                }
++            })
++            Device (CAM1)
++            {
++                #define SERCH_CAM_I2C 0x18
++                #define CAM_CSI_REMOTE_PORT 0
++                #define DESCH_SER_GPIORESETID 1
++                #include "_cam_common_ar0234.asl"
++                #undef DESCH_CAM_FSIN_GPIO
++                #undef DESCH_SER_GPIORESETID
++                #undef CAM_CSI_REMOTE_PORT
++                #undef SERCH_CAM_I2C
++            }
++        }
++    }
++}
++
++// Clean up channel-level defines for safe reuse
++#undef DESCH_LINK_NUM
++#undef DESCH_CH
++#undef DESCH_SER
++#undef DESCH_CAM
++#undef DESCH_CH_PATH
++#undef DESCH_SER_I2C
++#undef DESCH_SER_PATH
++#undef DESCH_SER_REF
++#ifdef SER_ALIAS
++#undef SER_ALIAS
++#endif
++#undef DESCH_SER_GPIOREF
++#ifdef DESCH_EXTRA_GPIO_PIN
++#undef DESCH_EXTRA_GPIO_PIN
++#endif
++#undef DESCH_RESET_GPIO_PIN
++#ifdef DESCH_CAM_FSIN_GPIO
++#undef DESCH_CAM_FSIN_GPIO
++#endif
++#undef CAM_ALIAS
+\ No newline at end of file
+diff --git a/acpi/ipu6/_ser_common_max9295.asl b/acpi/ipu6/_ser_common_max9295.asl
+index b94c69e0..461cc2ba 100644
+--- a/acpi/ipu6/_ser_common_max9295.asl
++++ b/acpi/ipu6/_ser_common_max9295.asl
+@@ -10,11 +10,30 @@
+  *   DESCH_LINK_NUM       - DES channel number (e.g. 0 for CH00, 1 for CH01), used in CSI2Bus
+  *   DESCH_SER_I2C        - SER I2C slave address (e.g. 0x40, 0x62), used in I2cSerialBusV2
+  *   CAM_ALIAS            - Camera alias I2C address used in i2c-alias-pool in _DSD
+- *   DESCH_SER_EXTRA_GPIO_PIN - (Optional) SER Extra GPIO pin number, used in GpioIo
++ *   DESCH_SER_RESET_GPIO - (Optional) SER Reset GPIO pin number, used in GpioIo
++ *   DESCH_SER_FSIN_GPIO  - (Optional) SER Extra GPIO pin number, used in GpioIo
+  *   DESCH_SER_FSYNC_RX_ID - (Optional) GMSL GPIO ID the DES sends frame sync as, used in MFP node
+  *   DESCH_SER_X/Y/Z/U_VC - (Optional) SER VC filter for Pipe X/Y/Z/U, specifically for MAX96717 driver
+  */
+ 
++#ifndef DESCH_SER_RESET_GPIO
++#ifndef DESCH_SER_FSIN_GPIO
++
++#define DESCH_SER_RESET_GPIO 0
++
++#endif
++#endif
++
++#ifdef DESCH_SER_RESET_GPIO
++#ifdef DESCH_SER_FSIN_GPIO
++
++#if DESCH_SER_RESET_GPIO == DESCH_SER_FSIN_GPIO
++#error "DESCH_SER_RESET_GPIO and DESCH_SER_FSIN_GPIO cannot be the same GPIO pin number"
++#endif
++
++#endif
++#endif
++
+ Method (_STA, 0, NotSerialized) // _STA: Status
+ {
+     Return (0x0F)               // bit 0: device is present, bit 1: device is enabled, bit 2: device is shown in UI, bit 3: device is functional
+@@ -50,7 +69,11 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+     I2cSerialBusV2 (
+         DESCH_SER_I2C,          // SlaveAddress (e.g. 0x40, 0x62 based on Serializer Hardware)
+         ControllerInitiated,    // SlaveMode
+-        0x00061A80,             // ConnectionSpeed
++#ifdef I2C_SPEED
++        I2C_SPEED,              // I2C ConnectionSpeed (e.g. 100000 for 100kHz)
++#else
++        400000,                 // I2C ConnectionSpeed (400000 for 400kHz)
++#endif
+         AddressingMode7Bit,     // AddressingMode
+         DESCH_CH_PATH,          // ResourceSource (e.g. "\\_SB.PC00.DESx.CHxx") based on which Link
+         0x00,                   // ResourceSourceIndex
+@@ -68,9 +91,14 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+         DESCH_SER_PATH,         // ResourceSourceIndex (Path to SER GPIO controller, e.g. "\\_SB.PC00.DESx.CHxx.SERx" based on which Link)
+         0)                      // ResourceUsage (Must be 0)
+     {
+-        0,                      // Pin 0 (e.g. MFP0 on MAX9295)
+-#ifdef DESCH_SER_EXTRA_GPIO_PIN
+-        DESCH_SER_EXTRA_GPIO_PIN,   // Extra pin (e.g. MFP7 on MAX9295)
++#ifdef DESCH_SER_RESET_GPIO
++        DESCH_SER_RESET_GPIO,   // Pin 0 (e.g. MFP0 on MAX9295)
++#endif
++#ifdef DESCH_SER_FSIN_GPIO
++        DESCH_SER_FSIN_GPIO,   // Extra pin (e.g. MFP7 on MAX9295)
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++        DESCH_SER_FSIN_GPIO_2,   // Extra pin (e.g. MFP7 on MAX9295)
+ #endif
+     }
+ })
+@@ -94,9 +122,6 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
+         Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
+ #else
+         Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
+-#endif
+-#ifdef DESCH_SER_EXTRA_GPIO_PIN
+-        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_EXTRA_GPIO_PIN },
+ #endif
+     },
+     ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
+@@ -111,10 +136,19 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
+         Package () { "Pipe-Y", "PIPY" }, // Pipe Y
+         Package () { "Pipe-Z", "PIPZ" }, // Pipe Z
+         Package () { "Pipe-U", "PIPU" }, // Pipe U
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
+         Package () { "fsync", "MFP" }, // fsync pin configuration
++#endif
++#endif
++#endif
+     }
+ })
+ 
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
+ Name (MFP, Package()
+ {
+     ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
+@@ -123,11 +157,17 @@ Name (MFP, Package()
+         #ifdef DESCH_SER_FSYNC_RX_ID
+         Package () { "maxim,rx-id", DESCH_SER_FSYNC_RX_ID }, // GMSL GPIO ID sent by the DES
+         #endif
+-        #ifdef DESCH_SER_EXTRA_GPIO_PIN
+-        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_EXTRA_GPIO_PIN },
++        #ifdef DESCH_SER_FSIN_GPIO
++        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_FSIN_GPIO },
++        #endif
++        #ifdef DESCH_SER_FSIN_GPIO_2
++        Package () { "gmsl-frame-sync-gpio-pin-2", DESCH_SER_FSIN_GPIO_2 },
+         #endif
+     },
+ })
++#endif
++#endif
++#endif
+ 
+ Name (PRT0, Package()
+ {
+diff --git a/acpi/ipu6/_ser_common_max9295d.asl b/acpi/ipu6/_ser_common_max9295d.asl
+new file mode 100644
+index 00000000..4335f1bf
+--- /dev/null
++++ b/acpi/ipu6/_ser_common_max9295d.asl
+@@ -0,0 +1,259 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0
++ * Copyright (c) 2026 Intel Corporation.
++ *
++ * SER-level defines expected by caller:
++ *   DES_REF              - Reference to parent DES (e.g. \_SB.PC00.DESx), used in _DEP
++ *   DES_PATH             - Path to parent DES (e.g. "\\_SB.PC00.DESx"), used in CSI2Bus
++ *   DESCH_CH_PATH        - Path to DES channel (e.g. "\\_SB.PC00.DESx.CHxx"), used in I2cSerialBusV2
++ *   DESCH_SER_PATH       - Path to SER (e.g. "\\_SB.PC00.DESx.CHxx.SERx"), used in GpioIo
++ *   DESCH_LINK_NUM       - DES channel number (e.g. 0 for CH00, 1 for CH01), used in CSI2Bus
++ *   DESCH_SER_I2C        - SER I2C slave address (e.g. 0x40, 0x62), used in I2cSerialBusV2
++ *   CAM_ALIAS            - Camera alias I2C address used in i2c-alias-pool in _DSD
++ *   DESCH_SER_EXTRA_GPIO_PIN - (Optional) SER Extra GPIO pin number, used in GpioIo
++ *   DESCH_SER_X/Y/Z/U_VC - (Optional) SER VC filter for Pipe X/Y/Z/U, specifically for MAX96717 driver
++ */
++
++#ifndef DESCH_RESET_GPIO_PIN2
++#ifndef DESCH_RESET_GPIO_PIN
++
++#define DESCH_RESET_GPIO_PIN 7
++
++#endif
++#endif
++
++#ifdef DESCH_RESET_GPIO_PIN2
++#ifdef DESCH_RESET_GPIO_PIN
++
++#if DESCH_RESET_GPIO_PIN2 == DESCH_RESET_GPIO_PIN
++#error "DESCH_RESET_GPIO_PIN2 and DESCH_RESET_GPIO_PIN cannot be the same GPIO pin number"
++#endif
++
++#endif
++#endif
++
++Method (_STA, 0, NotSerialized) // _STA: Status
++{
++        Return (0x0F)
++}
++
++Method (_HID, 0, NotSerialized)  // _HID: Hardware ID
++{
++        Return ("INTC1140") // MAX9295D
++}
++
++Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
++{
++    /*
++     * mipi-disco-img.c will use the information in CSI2Bus to create fwnode.
++     * SERx Local Port -> DESx Remote Port
++     * SERx PRT1 -> DESx PRT0/1/2/3
++     */
++    CSI2Bus(
++        DeviceInitiated,        // SlaveMode
++        1,                      // PhyType (1 for DPHY)
++        2,                      // LocalPort (MAX9295D's PHY is PRT2)
++        DES_PATH,         // ResourceSource (Path to parent DES, e.g. "\\_SB.PC00.DESx")
++        DESCH_LINK_NUM,         // ResourceSourceIndex (e.g. 0/1/2/3 for parent DES PRT0/1/2/3)
++        ,                       // ResourceUsage
++        ,                       // DescriptorName
++        )                       // VendorData
++
++    I2cSerialBusV2 (
++        DESCH_SER_I2C,          // SlaveAddress (e.g. 0x40, 0x62 based on Serializer Hardware)
++        ControllerInitiated,    // SlaveMode
++        0x00061A80,             // ConnectionSpeed
++        AddressingMode7Bit,     // AddressingMode
++        DESCH_CH_PATH,          // ResourceSource (e.g. "\\_SB.PC00.DESx.CHxx") based on which Link
++        0x00,                   // ResourceSourceIndex
++        ResourceConsumer,       // ResourceUsage
++        ,                       // DescriptorName
++        Exclusive,              // Shared
++        )                       // VendorData
++
++    GpioIo (
++        Exclusive,              // Shared (Not shared)
++        PullNone,               // PinConfig (No need for pulls)
++        0,                      // DebounceTimeout
++        0,                      // DriveStrength
++        IoRestrictionOutputOnly,// ResourceSource (Only used as output)
++        DESCH_SER_PATH,         // ResourceSourceIndex (Path to SER GPIO controller, e.g. "\\_SB.PC00.DESx.CHxx.SERx" based on which Link)
++        0)                      // ResourceUsage (Must be 0)
++    {
++        DESCH_RESET_GPIO_PIN,   // Pin 7 (e.g. MFP7 on MAX9295d)
++#ifdef DESCH_RESET_GPIO_PIN2
++        DESCH_RESET_GPIO_PIN2,  // Pin 8 (e.g. MFP8 on MAX9295d)
++#endif
++#ifdef DESCH_EXTRA_GPIO_PIN
++        DESCH_EXTRA_GPIO_PIN,
++#endif
++#ifdef DESCH_SER_FSIN_GPIO
++        DESCH_SER_FSIN_GPIO,	// Extra pin (e.g. MFP9 on MAX9295d)
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++        DESCH_SER_FSIN_GPIO_2,  // Extra pin (e.g. MFP10 on MAX9295d)
++#endif
++    }
++})
++
++Name (_DEP, Package (0x01)  // _DEP: Dependencies
++{
++    DES_REF
++})
++
++Name (_DSD, Package ()  // _DSD: Device-Specific Data
++{
++#ifdef CAM_ALIAS
++        ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties for _DSD
++        Package ()
++        {
++        // I2C alias pool used by i2c-atr driver.
++        // Address called out in the pool is used as Camera Alias Address.
++        Package () { "i2c-alias-pool",  Package() { CAM_ALIAS } },
++        /*
++         * External GMSL frame sync control, consumed by max96717.c.
++         * Disabled by default; define EXTERNAL_FRAME_SYNC (1) by the
++         * caller to override.
++         */
++#ifdef EXTERNAL_FRAME_SYNC
++        Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
++#else
++        Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
++#endif
++        },
++#endif
++        ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
++        Package ()
++        {
++        Package () { "mipi-img-port-0", "PRT0" }, // Connected to CAM0 (used by CAM0 CSI2Bus ResourceSourceIndex)
++        Package () { "mipi-img-port-1", "PRT1" }, // Connected to CAM1 (used by CAM1 CSI2Bus ResourceSourceIndex)
++        Package () { "mipi-img-port-2", "PRT2" }, // Connected to DESx PRTx (used by SERx CSI2Bus LocalPort)
++    #ifdef DESCH_SER_X_VC
++        Package () { "Pipe-X", "PIPX" }, // Pipe X
++    #endif
++    #ifdef DESCH_SER_Y_VC
++        Package () { "Pipe-Y", "PIPY" }, // Pipe Y
++    #endif
++    #ifdef DESCH_SER_Z_VC
++        Package () { "Pipe-Z", "PIPZ" }, // Pipe Z
++    #endif
++    #ifdef DESCH_SER_U_VC
++        Package () { "Pipe-U", "PIPU" }, // Pipe U
++    #endif
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
++        Package () { "fsync", "MFP" }, // fsync pin configuration
++#endif
++#endif
++#endif
++        }
++})
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
++Name (MFP, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++    Package ()
++    {
++        #ifdef DESCH_SER_FSYNC_RX_ID
++        Package () { "maxim,rx-id", DESCH_SER_FSYNC_RX_ID }, // GMSL GPIO ID sent by the DES
++        #endif
++        #ifdef DESCH_SER_FSIN_GPIO
++        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_FSIN_GPIO },
++        #endif
++        #ifdef DESCH_SER_FSIN_GPIO_2
++        Package () { "gmsl-frame-sync-gpio-pin-2", DESCH_SER_FSIN_GPIO_2 },
++        #endif
++    },
++})
++#endif
++#endif
++#endif
++
++Name (PRT0, Package()
++{
++        ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++        Package ()
++        {
++        Package () { "mipi-img-clock-lanes", 0 },
++    #if CAM_LANES == 4
++        Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },
++    #elif CAM_LANES == 2
++        Package () { "mipi-img-data-lanes", Package() { 1, 2 } },
++    #else
++        Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },
++    #endif
++        },
++})
++
++Name (PRT1, Package()
++{
++        ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++        Package ()
++        {
++        Package () { "mipi-img-clock-lanes", 0 },
++    #if CAM_LANES == 4
++        Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },
++    #elif CAM_LANES == 2
++        Package () { "mipi-img-data-lanes", Package() { 1, 2 } },
++    #else
++        Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },
++    #endif
++        },
++})
++
++Name (PRT2, Package()
++{
++        ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
++        Package ()
++        {
++        Package () { "mipi-img-clock-lanes", 0 },
++        Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },
++        },
++})
++
++#ifdef DESCH_SER_X_VC
++Name (PIPX, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++        Package ()
++        {
++        Package () { "vc-id", DESCH_SER_X_VC }, // VC filter for pipe X
++        },
++})
++#endif
++
++#ifdef DESCH_SER_Y_VC
++Name (PIPY, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++        Package ()
++        {
++        Package () { "vc-id", DESCH_SER_Y_VC }, // VC filter for pipe Y
++        },
++})
++#endif
++
++#ifdef DESCH_SER_Z_VC
++Name (PIPZ, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++        Package ()
++        {
++        Package () { "vc-id", DESCH_SER_Z_VC }, // VC filter for pipe Z
++        },
++})
++#endif
++
++#ifdef DESCH_SER_U_VC
++Name (PIPU, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++        Package ()
++        {
++        Package () { "vc-id", DESCH_SER_U_VC }, // VC filter for pipe U
++        },
++})
++#endif
+\ No newline at end of file
+diff --git a/acpi/ipu6/max9296-adv-mioe_sl_ar0234_stereo.asl b/acpi/ipu6/max9296-adv-mioe_sl_ar0234_stereo.asl
+new file mode 100644
+index 00000000..86700091
+--- /dev/null
++++ b/acpi/ipu6/max9296-adv-mioe_sl_ar0234_stereo.asl
+@@ -0,0 +1,165 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0
++ * Copyright (c) 2026 Intel Corporation.
++ *
++ * SSDT overlay: D3 AR0234 GMSL camera configuration with MAX9296A deserializer on IPU6EPMTL platform.
++ *   One MAX9296A deserializer (DES0, two GMSL links) with DPHY connection to IPU6EPMTL platform,
++ *   carrying two AR0234 cameras over GMSL Links 0..1, fronted by MAX9295A serializers.
++ *
++ *
++ * DES-level defines (set per DESx, undef'd at the end of each Device):
++ *   DES_PHY_TYPE       - DES PHY type (0 for CPHY, 1 for DPHY)
++ *   DES_I2C_ADDR       - DES I2C slave address (e.g. 0x0048 for MAX9296A)
++ *   DES_LANES          - Number of MIPI data lanes (e.g. 2, 4)
++ *   DES_INTERNAL_PHY   - DES internal PHY index (MAX9296A: 1 or 2)
++ *   DES_TO_MIPI_PORT   - DES connected to IPU0 MIPI port (e.g. 0/1/2/3)
++ *   DES_I2C_BUS        - DES I2C bus path (e.g. "\\_SB.PC00.I2C1")
++ *   DES_PATH           - DES ACPI path string (e.g. "\\_SB.PC00.DES0")
++ *   DES_REF            - DES ACPI namespace reference (e.g. \_SB.PC00.DES0)
++ *
++ * Channel-level defines (set per CHxx, undef'd by _des_ch_common_ar0234.asl):
++ *   DESCH_LINK_NUM     - Channel/link number (0..1 for MAX9296A) - used for _ADR, reg, SER remote port
++ *   DESCH_CH           - Channel device name (e.g. CH00)
++ *   DESCH_SER          - Serializer device name (e.g. SER0)
++ *   DESCH_CAM          - Camera device name (e.g. CAM0)
++ *   DESCH_SER_I2C      - SER I2C slave address (e.g. 0x40 for MAX9295A)
++ *   DESCH_CH_PATH      - CHxx ACPI path string (e.g. "\\_SB.PC00.DES0.CH00")
++ *   DESCH_SER_PATH     - SERx ACPI path string (e.g. "\\_SB.PC00.DES0.CH00.SER0")
++ *   DESCH_SER_REF      - SERx ACPI namespace reference (e.g. \_SB.PC00.DES0.CH00.SER0)
++ *   DESCH_SER_GPIOREF  - SERx GPIO controller reference (e.g. ^^SER0)
++ *   CAM_ALIAS          - Camera alias I2C address used in i2c-alias-pool of the SER
++ *   CAM_LANES          - Number of MIPI data lanes for the camera (e.g. 2, 4)
++ */
++
++/* !! IMPORTANT !!
++ * MAX9296 DPHY Advantech® MIOe-GMSL AIC (HFE-R360, ASR-A502) FAKRA connectors
++ *
++  +----|----+  +----|----+  +----|----+  +----|----+
++  |   _^_   |  |   _^_   |  |   _^_   |  |   _^_   |
++  |  /   \  |  |  /   \  |  |  /   \  |  |  /   \  |
++  | | (A) | |  | | (B) | |  | | (C) | |  | | (D) | |
++  |  \___/  |  |  \___/  |  |  \___/  |  |  \___/  |
++  +---------+  +---------+  +---------+  +---------+
++      MIPI-0 / I2C0		MIPI-4 / I2C1
++      (GMSL A & B Links)  	(GMSL C & D Links)
++ */
++
++DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20261113)
++{
++    External (_SB.PC00, DeviceObj)
++
++    Include ("_ipu.asl")
++
++    Scope (\_SB.PC00)
++    {
++        Device (DES0)
++        {
++            #define EXTERNAL_FRAME_SYNC 1
++            #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
++
++	    //DES-level defines for DES0
++            #define DES_PHY_TYPE 1
++            #define DES_I2C_ADDR 0x0048
++            #define DES_LANES 4
++            #define DES_INTERNAL_PHY 2
++            #define DES_TO_MIPI_PORT 0
++            #define DES_I2C_BUS "\\_SB.PC00.I2C1"
++            #define DES_PATH "\\_SB.PC00.DES0"
++            #define DES_REF \_SB.PC00.DES0
++            #define LINK_FREQ 700000000
++            #include "_des_common_max9296.asl"
++
++            // First populated serializer, connected to physical GMSL link 1
++            #define DESCH_LINK_NUM 1
++            #define DESCH_CH CH01
++            #define DESCH_SER SER1
++            #define DESCH_SER_I2C 0x62
++            #define DESCH_CH_PATH "\\_SB.PC00.DES0.CH01"
++            #define DESCH_SER_PATH "\\_SB.PC00.DES0.CH01.SER1"
++            #define DESCH_SER_REF \_SB.PC00.DES0.CH01.SER1
++            #define DESCH_SER_GPIOREF ^^^SER1
++            #define DESCH_RESET_GPIO_PIN    7
++            #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
++            #define DESCH_SER_X_VC Package () { 1 }
++            #define DESCH_SER_Y_VC Package () { 0 }
++            #define CAM_ALIAS 0x66, 0x67
++            #define CAM_LANES 2
++            #include "_des_ch_common_zedx.asl"
++            #undef DESCH_LINK_NUM
++            #undef DESCH_CH
++            #undef DESCH_SER
++            #undef DESCH_SER_I2C
++            #undef DESCH_CH_PATH
++            #undef DESCH_SER_PATH
++            #undef DESCH_SER_REF
++            #undef DESCH_SER_GPIOREF
++            #undef DESCH_RESET_GPIO_PIN
++            #undef DESCH_RESET_GPIO_PIN2
++            #undef DESCH_SER_X_VC
++            #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
++            #undef CAM_ALIAS
++            #undef CAM_LANES
++
++            // Second serializer, connected to physical GMSL link 2
++            #define DESCH_LINK_NUM 2
++            #define DESCH_CH CH02
++            #define DESCH_SER SER2
++            #define DESCH_SER_I2C 0x62
++            #define DESCH_CH_PATH "\\_SB.PC00.DES0.CH02"
++            #define DESCH_SER_PATH "\\_SB.PC00.DES0.CH02.SER2"
++            #define DESCH_SER_REF \_SB.PC00.DES0.CH02.SER2
++            #define DESCH_SER_GPIOREF ^^^SER2
++            #define DESCH_RESET_GPIO_PIN    7
++            #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
++            #define DESCH_SER_X_VC Package () { 1 }
++            #define DESCH_SER_Y_VC Package () { 0 }
++            /* ATR links share the upstream bus; aliases must not overlap. */
++            #define CAM_ALIAS 0x68, 0x6a
++            #define CAM_LANES 2
++            #include "_des_ch_common_zedx.asl"
++            #undef DESCH_LINK_NUM
++            #undef DESCH_CH
++            #undef DESCH_SER
++            #undef DESCH_SER_I2C
++            #undef DESCH_CH_PATH
++            #undef DESCH_SER_PATH
++            #undef DESCH_SER_REF
++            #undef DESCH_SER_GPIOREF
++            #undef DESCH_RESET_GPIO_PIN
++            #undef DESCH_RESET_GPIO_PIN2
++            #undef DESCH_SER_X_VC
++            #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
++            #undef CAM_ALIAS
++            #undef CAM_LANES
++
++            // Channels 0 and 3 are not populated
++            // Clean up DES-level defines
++            #undef DES_PHY_TYPE
++            #undef DES_I2C_ADDR
++            #undef DES_LANES
++            #undef DES_INTERNAL_PHY
++            #undef DES_TO_MIPI_PORT
++            #undef DES_I2C_BUS
++            #undef DES_PATH
++            #undef DES_REF
++            #undef LINK_FREQ
++        }
++    }
++}
+\ No newline at end of file
+-- 
+2.43.0
+

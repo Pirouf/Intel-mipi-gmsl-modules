@@ -1,0 +1,42 @@
+From 0cfeda480102838fc3d8759723e88530e315d9cc Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Thu, 1 Oct 2026 14:58:30 +0200
+Subject: [PATCH 097/122] maxim-serdes: display frame-sync RX_ID and TX_ID logs
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/maxim-serdes/max96717.c | 3 ++-
+ drivers/media/i2c/maxim-serdes/max96724.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/maxim-serdes/max96717.c b/drivers/media/i2c/maxim-serdes/max96717.c
+index 664584d6..76cc9a9e 100644
+--- a/drivers/media/i2c/maxim-serdes/max96717.c
++++ b/drivers/media/i2c/maxim-serdes/max96717.c
+@@ -1478,7 +1478,8 @@ static int max96717_configure_frame_sync(struct max96717_priv *priv, unsigned in
+ 		return ret;
+ 	}
+ 
+-	dev_info(priv->dev, "max96717 frame_sync configured successfully\n");
++	dev_info(priv->dev, "max96717 frame_sync configured successfully: RX_ID=%u\n",
++		 priv->ser.frame_sync_rx_id);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/media/i2c/maxim-serdes/max96724.c b/drivers/media/i2c/maxim-serdes/max96724.c
+index b98cf6c2..ff82d4da 100644
+--- a/drivers/media/i2c/maxim-serdes/max96724.c
++++ b/drivers/media/i2c/maxim-serdes/max96724.c
+@@ -662,7 +662,8 @@ static int max96724_configure_frame_sync(struct max96724_priv *priv)
+ 		return ret;
+ 	}
+ 
+-	dev_info(priv->dev, "max96724 frame_sync configured successfully\n");
++	dev_info(priv->dev, "max96724 frame_sync configured successfully: TX_ID=%u \n",
++		 val);
+ 	return 0;
+ }
+ 
+-- 
+2.43.0
+

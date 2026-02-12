@@ -1,0 +1,54 @@
+From e32c79c72551bda5a86402d623da8afd2f51386e Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Mon, 28 Sep 2026 17:28:08 +0200
+Subject: [PATCH 092/122] acpi: add missing CAM_CSI_REMOTE_PORT undefined
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ acpi/ipu7/_cam_common_ar0234.asl    | 6 ------
+ acpi/ipu7/_des_ch_common_ar0234.asl | 8 ++++++++
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/acpi/ipu7/_cam_common_ar0234.asl b/acpi/ipu7/_cam_common_ar0234.asl
+index 556790e8..5a52836e 100644
+--- a/acpi/ipu7/_cam_common_ar0234.asl
++++ b/acpi/ipu7/_cam_common_ar0234.asl
+@@ -21,12 +21,6 @@
+ 
+ #endif
+ 
+-#ifndef CAM_CSI_REMOTE_PORT
+-
+-#define CAM_CSI_REMOTE_PORT 0
+-
+-#endif
+-
+ Method (_STA, 0, NotSerialized) // _STA: Status
+ {
+     Return (0x0F)               // bit 0: device is present, bit 1: device is enabled, bit 2: device is shown in UI, bit 3: device is functional
+diff --git a/acpi/ipu7/_des_ch_common_ar0234.asl b/acpi/ipu7/_des_ch_common_ar0234.asl
+index 078cdd9c..41e574e1 100644
+--- a/acpi/ipu7/_des_ch_common_ar0234.asl
++++ b/acpi/ipu7/_des_ch_common_ar0234.asl
+@@ -25,6 +25,10 @@
+  *   DESCH_SER_X/Y/Z/U_VC     - SERx VC filter for Pipe X/Y/Z/U, specifically for MAX96717 driver
+  */
+ 
++#ifndef CAM_CSI_REMOTE_PORT
++#define CAM_CSI_REMOTE_PORT 0
++#endif
++
+ Device (DESCH_CH) // New CHxx Device under parent DESx device for each DES channel/link
+ {
+     /*
+@@ -53,3 +57,7 @@ Device (DESCH_CH) // New CHxx Device under parent DESx device for each DES chann
+         }
+     }
+ }
++// Clean up channel-level defines for safe reuse
++#ifdef CAM_CSI_REMOTE_PORT
++#undef CAM_CSI_REMOTE_PORT
++#endif
+-- 
+2.43.0
+

@@ -1,0 +1,43 @@
+From 694a947b0530ed99c02d2d3052a417cfa8782405 Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Thu, 15 Oct 2026 14:12:15 +0800
+Subject: [PATCH 104/122] acpi: assign distinct sensor aliases to AIR355 second
+ ZED X
+
+Use 0x68 and 0x6a for DES0 SER2 so nested ATR adapters do not
+broadcast sensor writes to different phsyical stereo units.
+Avoid 0x69, which responds independently of the sensor translation
+on AIR-355.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+Signed-off-by: Stanley <stanley.chang@intel.com>
+---
+ acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+index cd997731..1930e53d 100644
+--- a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
++++ b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+@@ -122,7 +122,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_SER_FSIN_GPIO_2 10
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+-            #define CAM_ALIAS 0x66, 0x67
++            /* ATR links share the upstream bus; aliases must not overlap. */
++            #define CAM_ALIAS 0x68, 0x6a
+             #define CAM_LANES 2
+             #include "_des_ch_common_zedx.asl"
+             #undef DESCH_LINK_NUM
+@@ -233,7 +234,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_RESET_GPIO_PIN2   8
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+-            #define CAM_ALIAS 0x66, 0x67
++            #define CAM_ALIAS 0x68, 0x6a
+             #define CAM_LANES 2
+             #include "_des_ch_common_zedx.asl"
+             #undef DESCH_LINK_NUM
+-- 
+2.43.0
+

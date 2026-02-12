@@ -1,0 +1,26 @@
+From e1ad7ba2895a46cb25f2e171aff3d9e98f296b6c Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Mon, 31 Aug 2026 06:17:38 -0700
+Subject: [PATCH 002/122] makefile: disable IPU7 ISYS reset feature
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 14588805..0297c100 100644
+--- a/Makefile
++++ b/Makefile
+@@ -90,7 +90,7 @@ LINUXINCLUDE := -I$(src)/include $(LINUXINCLUDE)
+ ccflags-y := -I$(src)/include
+ # IPU7 driver configs
+ export CONFIG_VIDEO_INTEL_IPU7=m
+-export CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET=y
++export CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET=n
+ export CONFIG_VIDEO_INTEL_IPU6=m
+ export CONFIG_VIDEO_INTEL_IPU6_ISYS_RESET=y
+ 
+-- 
+2.43.0
+

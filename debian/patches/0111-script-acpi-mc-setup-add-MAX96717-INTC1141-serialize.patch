@@ -1,0 +1,73 @@
+From 972ae8e4ffa045db756a4fe55787798c550e82be Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Tue, 3 Nov 2026 13:42:01 +0800
+Subject: [PATCH 111/122] script: acpi: mc-setup: add MAX96717 (INTC1141)
+ serializer for Sensing M3A
+
+Port of upstream 0483a76a (mc-setup.sh: Add support of max96717 serializer)
+to the local scripts, which also track per-serializer PHY counts.
+
+(cherry picked from commit 0483a76a1c8c06e80ffccf2091eb497b330b2d47)
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ script/acpi/mc-setup-zedx.sh | 5 ++++-
+ script/acpi/mc-setup.sh      | 3 ++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/script/acpi/mc-setup-zedx.sh b/script/acpi/mc-setup-zedx.sh
+index 5d3463f4..a32ccbde 100755
+--- a/script/acpi/mc-setup-zedx.sh
++++ b/script/acpi/mc-setup-zedx.sh
+@@ -40,8 +40,9 @@
+ #   INTC10CD = D4XX camera   (entity prefixes: "DS5 mux", "D4XX depth/rgb/ir/imu")
+ #   INTC113C = ISX031 camera (entity prefix:   "isx031")
+ #   INTC10C0 = AR0234 camera (entity prefix:   "ar0234")
+-#   INTC1138 = MAX9295A / MAX96717 serializer   (1 PHY,  entity prefix: "max96717")
++#   INTC1138 = MAX9295A serializer              (1 PHY,  entity prefix: "max96717")
+ #   INTC1140 = MAX9295D serializer              (2 PHYs, entity prefix: "max96717")
++#   INTC1141 = MAX96717 serializer (M3A)        (1 PHY,  entity prefix: "max96717")
+ #   INTC1137 = MAX9296A deserializer            (entity prefix: "max9296a")
+ #   INTC1139 = MAX96724 deserializer            (entity prefix: "max96724")
+ 
+@@ -110,6 +111,7 @@ declare -A MIPI_SENSOR_HID=(
+ declare -A SER_PREFIX=(
+     [INTC1138]="max96717"
+     [INTC1140]="max96717"
++    [INTC1141]="max96717"
+ )
+ 
+ # Number of camera-facing PHYs (sink pads) a serializer model exposes.
+@@ -120,6 +122,7 @@ declare -A SER_PREFIX=(
+ declare -A SER_NUM_PHYS=(
+     [INTC1138]=1
+     [INTC1140]=2
++    [INTC1141]=1
+ )
+ declare -A DES_PREFIX=(
+     [INTC1137]="max9296a"
+diff --git a/script/acpi/mc-setup.sh b/script/acpi/mc-setup.sh
+index 62c8e231..dccaeb35 100755
+--- a/script/acpi/mc-setup.sh
++++ b/script/acpi/mc-setup.sh
+@@ -42,8 +42,8 @@
+ #   INTC10C0 = AR0234 camera (entity prefix:   "ar0234")
+ #   OVTI13B1 = OV13B10 camera (entity prefix: "ov13b10")
+ #   INTC1138 = MAX9295 serializer               (entity prefix: "max96717")
+-#   INTC1141 = MAX96717 serializer              (entity prefix: "max96717")
+ #   INTC1140 = MAX9295D serializer (ZED X)      (2 PHYs, entity prefix: "max96717")
++#   INTC1141 = MAX96717 serializer (M3A)        (1 PHY,  entity prefix: "max96717")
+ #   INTC1137 = MAX9296A deserializer            (entity prefix: "max9296a")
+ #   INTC1139 = MAX96724 deserializer            (entity prefix: "max96724")
+ 
+@@ -127,6 +127,7 @@ declare -A SER_PREFIX=(
+ declare -A SER_NUM_PHYS=(
+     [INTC1138]=1
+     [INTC1140]=2
++    [INTC1141]=1
+ )
+ declare -A DES_PREFIX=(
+     [INTC1137]="max9296a"
+-- 
+2.43.0
+

@@ -1,0 +1,55 @@
+From ed81359fb456150d3ed5d1684c6655a17fbcaac0 Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Wed, 23 Sep 2026 10:48:01 +0800
+Subject: [PATCH 090/122] config: map ZED X HAL captures by ACPI sensor path
+
+Match the four routed AR0234 capture paths through their stable ACPI firmware-node paths instead of transient I2C ATR bus numbers. Requires Camera HAL acpiName resolution.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ config/ar0234/ipu75xa/sensors/ar0234.json | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/config/ar0234/ipu75xa/sensors/ar0234.json b/config/ar0234/ipu75xa/sensors/ar0234.json
+index dc7005ee..e5f267df 100644
+--- a/config/ar0234/ipu75xa/sensors/ar0234.json
++++ b/config/ar0234/ipu75xa/sensors/ar0234.json
+@@ -31,7 +31,7 @@
+             "videonode": [
+               { "name": "Intel IPU7 ISYS Capture 0", "videoNodeType": "VIDEO_GENERIC" },
+               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
+-              { "acpiName": "\\_SB_.PC00.DES0.CH00.SER0.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
++              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+             ]
+           }
+         ],
+@@ -223,7 +223,7 @@
+             "videonode": [
+               { "name": "Intel IPU7 ISYS Capture 1", "videoNodeType": "VIDEO_GENERIC" },
+               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
+-              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
++              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+             ]
+           }
+         ],
+@@ -415,7 +415,7 @@
+             "videonode": [
+               { "name": "Intel IPU7 ISYS Capture 2", "videoNodeType": "VIDEO_GENERIC" },
+               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
+-              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CAM2", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
++              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+             ]
+           }
+         ],
+@@ -607,7 +607,7 @@
+             "videonode": [
+               { "name": "Intel IPU7 ISYS Capture 3", "videoNodeType": "VIDEO_GENERIC" },
+               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
+-              { "acpiName": "\\_SB_.PC00.DES0.CH03.SER3.CAM3", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
++              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+             ]
+           }
+         ],
+-- 
+2.43.0
+

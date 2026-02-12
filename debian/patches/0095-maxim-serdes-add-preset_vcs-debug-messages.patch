@@ -1,0 +1,39 @@
+From 21ec4d75278666fbed11c43611dc9578172f37e4 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Sun, 20 Sep 2026 08:39:55 +0200
+Subject: [PATCH 095/122] maxim-serdes: add preset_vcs debug messages
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/maxim-serdes/max_ser.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/media/i2c/maxim-serdes/max_ser.c b/drivers/media/i2c/maxim-serdes/max_ser.c
+index ec524074..7ac75b7a 100644
+--- a/drivers/media/i2c/maxim-serdes/max_ser.c
++++ b/drivers/media/i2c/maxim-serdes/max_ser.c
+@@ -110,6 +110,7 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
+ 		      u64 streams_mask)
+ {
+ 	unsigned int i;
++	struct max_ser_priv *priv = ser->priv;
+ 
+ 	for (i = 0; i < ser->ops->num_pipes; i++) {
+ 		struct max_ser_pipe *pipe = &ser->pipes[i];
+@@ -121,6 +122,13 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
+ 		    !(pipe->preset_vcs & streams_mask))
+ 			continue;
+ 
++		dev_dbg(priv->dev,
++			"find_phy_pipe: pipe%c phy_id=%u, preset_vcs=%u, streams_mask=%x\n",
++			i == 3 ? 'U' : 'X' + i,
++			pipe->phy_id,
++			pipe->preset_vcs,
++			streams_mask);
++
+ 		return pipe;
+ 	}
+ 
+-- 
+2.43.0
+

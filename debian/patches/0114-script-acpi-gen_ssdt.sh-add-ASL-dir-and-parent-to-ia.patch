@@ -1,0 +1,35 @@
+From 423af82d81d28e3a5f8204a0bc7b46d4be008dee Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Tue, 3 Nov 2026 13:16:53 +0800
+Subject: [PATCH 114/122] script: acpi: gen_ssdt.sh: add ASL dir and parent to
+ iasl include path
+
+iasl resolves Include()/#include only against the cwd and -I paths, so
+building an ASL from a subdirectory (e.g. acpi/ipu8/advantech_ASR_A505/)
+failed to find sibling and shared fragments such as _ipu.asl and
+_des_common_max96724.asl. Pass the ASL's directory and its parent as
+include paths.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ script/acpi/gen_ssdt.sh | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/script/acpi/gen_ssdt.sh b/script/acpi/gen_ssdt.sh
+index 26f6589d..e0bc9468 100755
+--- a/script/acpi/gen_ssdt.sh
++++ b/script/acpi/gen_ssdt.sh
+@@ -56,7 +56,9 @@ fi
+ # cannot leave the old AML in place to be packaged below.
+ rm -f "$AML" "$SSDT_IMG"
+ 
+-iasl -li "$1"
++# iasl resolves Include()/#include only against the cwd and -I paths, so add
++# the ASL's directory and its parent (shared fragments like _ipu.asl) to find sibling fragments.
++iasl -li -I "$(dirname "$1")" -I "$(dirname "$1")/.." "$1"
+ ASL_DIR="$PWD"
+ 
+ # iasl can return 0 with warnings but skip writing the AML on errors;
+-- 
+2.43.0
+

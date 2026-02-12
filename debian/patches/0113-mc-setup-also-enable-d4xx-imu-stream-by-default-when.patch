@@ -1,0 +1,45 @@
+From 001bb9cd5596a8c1007501d9372c800f116aa70b Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Thu, 29 Oct 2026 16:30:27 +0800
+Subject: [PATCH 113/122] mc-setup: also enable d4xx imu stream by default when
+ resources allow
+
+Add imu to MODEL_OPTIONAL_DEFAULT_STREAMS for d4xx so a no-argument run
+routes the IMU (e.g. icamerasrc device-name=d4xx-5-imu) in addition to
+depth, rgb and ir. As with ir, imu is only appended while the
+deserializer has a free source_stream and the capture node is unused,
+so a single D457 per deserializer gets all four streams while
+multi-camera setups keep their previous routing.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ script/acpi/mc-setup.sh | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/script/acpi/mc-setup.sh b/script/acpi/mc-setup.sh
+index 1b734c34..e158cf40 100755
+--- a/script/acpi/mc-setup.sh
++++ b/script/acpi/mc-setup.sh
+@@ -156,7 +156,7 @@ declare -A MODEL_DEFAULT_STREAMS=(
+     [d4xx]="depth rgb"
+ )
+ declare -A MODEL_OPTIONAL_DEFAULT_STREAMS=(
+-    [d4xx]="ir"
++    [d4xx]="ir imu"
+ )
+ 
+ fixed_stream_for_model() {
+@@ -841,8 +841,8 @@ print_topology() {
+ # TOKEN is only applicable for multi-stream sensors as specified in MODEL_STREAMS.
+ # Other 2D sensors do not need stream=<csv>, they default to `single`.
+ #
+-# D4xx defaults to depth,rgb when no stream is specified, plus ir when the
+-# deserializer has a spare source_stream and the ir capture node is free.
++# D4xx defaults to depth,rgb when no stream is specified, plus ir and then imu
++# while the deserializer has a spare source_stream and the capture node is free.
+ #
+ # When des= is omitted, des=0 is assumed (matches the legacy single-DES CLI).
+ #
+-- 
+2.43.0
+

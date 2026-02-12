@@ -1,0 +1,126 @@
+From 7b7e1dd95d15fdeb985f47ecc8962eb8ba10dc50 Mon Sep 17 00:00:00 2001
+From: "Yew, Chang Ching" <chang.ching.yew@intel.com>
+Date: Tue, 16 Jun 2026 11:09:53 +0800
+Subject: [PATCH 084/122] media: i2c: max_ser: use sensor get_frame_desc as
+ sole VC-ID source
+
+Remove the static vc-id firmware property mechanism and drive the pipe
+VC filter entirely from the sensor's get_frame_desc at stream-enable
+time.
+
+- max_ser_get_pipe_vcs_dts: drop the PIXEL_MODE early-return so VC-ID
+  is read from get_frame_desc in all GMSL modes. DT accumulation and
+  leak-detection remain pixel-mode-only.
+
+- max_ser_update_pipe: decouple VCS from DT filtering. Guard changes
+  from !num_dts_per_pipe to !num_dts_per_pipe && !set_pipe_vcs so
+  set_pipe_vcs() is called even on hardware without per-pipe DT
+  filtering.
+
+- max_ser_find_phy_pipe: remove streams_mask parameter and
+  preset_vcs-based filter; return the first pipe matching phy_id.
+
+Signed-off-by: Yew, Chang Ching <chang.ching.yew@intel.com>
+---
+ drivers/media/i2c/maxim-serdes/max_ser.c | 41 +++++++++++++++---------
+ 1 file changed, 26 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/media/i2c/maxim-serdes/max_ser.c b/drivers/media/i2c/maxim-serdes/max_ser.c
+index c3b2c761..ec524074 100644
+--- a/drivers/media/i2c/maxim-serdes/max_ser.c
++++ b/drivers/media/i2c/maxim-serdes/max_ser.c
+@@ -904,9 +904,6 @@ static int max_ser_get_pipe_vcs_dts(struct max_ser_priv *priv,
+ 	*vcs = 0;
+ 	*num_dts = 0;
+ 
+-	if (ser->mode != MAX_SERDES_GMSL_PIXEL_MODE)
+-		return 0;
+-
+ 	for_each_active_route(&state->routing, route) {
+ 		struct max_ser_route_hw hw;
+ 		unsigned int vc, dt;
+@@ -922,13 +919,17 @@ static int max_ser_get_pipe_vcs_dts(struct max_ser_priv *priv,
+ 			continue;
+ 
+ 		vc = hw.entry.bus.csi2.vc;
+-		dt = hw.entry.bus.csi2.dt;
+ 
+ 		if (vc >= MAX_SERDES_VC_ID_NUM)
+ 			return -E2BIG;
+ 
+ 		*vcs |= BIT(vc);
+ 
++		if (!dts || ser->mode != MAX_SERDES_GMSL_PIXEL_MODE)
++			continue;
++
++		dt = hw.entry.bus.csi2.dt;
++
+ 		/* Skip already added DT. */
+ 		for (i = 0; i < *num_dts; i++)
+ 			if (dts[i] == dt)
+@@ -941,6 +942,9 @@ static int max_ser_get_pipe_vcs_dts(struct max_ser_priv *priv,
+ 		(*num_dts)++;
+ 	}
+ 
++	if (!dts || ser->mode != MAX_SERDES_GMSL_PIXEL_MODE)
++		return 0;
++
+ 	/*
+ 	 * Hardware cannot distinguish between different pairs of VC and DT,
+ 	 * issue a warning.
+@@ -1098,34 +1102,41 @@ static int max_ser_update_pipe(struct max_ser_priv *priv,
+ {
+ 	struct max_ser *ser = priv->ser;
+ 	struct max_ser_pipe_mode mode = { 0 };
+-	unsigned int num_dts;
+-	unsigned int *dts;
++	unsigned int num_dts = 0;
++	unsigned int *dts = NULL;
+ 	unsigned int vcs;
+ 	int ret;
+ 
+-	if (!ser->ops->num_dts_per_pipe)
++	if (!ser->ops->num_dts_per_pipe && !ser->ops->set_pipe_vcs)
+ 		return 0;
+ 
+-	dts = devm_kcalloc(priv->dev, ser->ops->num_dts_per_pipe, sizeof(*dts),
+-			   GFP_KERNEL);
+-	if (!dts)
+-		return -ENOMEM;
++	if (ser->ops->num_dts_per_pipe) {
++		dts = devm_kcalloc(priv->dev, ser->ops->num_dts_per_pipe, sizeof(*dts),
++				   GFP_KERNEL);
++		if (!dts)
++			return -ENOMEM;
++	}
+ 
+ 	ret = max_ser_get_pipe_vcs_dts(priv, state, pipe, &vcs, dts, &num_dts,
+ 				       streams_masks);
+ 	if (ret)
+ 		goto err_free_dts;
+ 
+-	ret = max_ser_get_pipe_mode(priv, state, pipe, &mode);
+-	if (ret)
+-		goto err_free_dts;
+-
+ 	if (ser->ops->set_pipe_vcs) {
+ 		ret = ser->ops->set_pipe_vcs(ser, pipe, vcs);
+ 		if (ret)
+ 			goto err_revert_vcs;
+ 	}
+ 
++	if (!ser->ops->num_dts_per_pipe) {
++		pipe->vcs = vcs;
++		return 0;
++	}
++
++	ret = max_ser_get_pipe_mode(priv, state, pipe, &mode);
++	if (ret)
++		goto err_revert_vcs;
++
+ 	ret = max_ser_set_pipe_mode(priv, pipe, &mode);
+ 	if (ret)
+ 		goto err_revert_mode;
+-- 
+2.43.0
+

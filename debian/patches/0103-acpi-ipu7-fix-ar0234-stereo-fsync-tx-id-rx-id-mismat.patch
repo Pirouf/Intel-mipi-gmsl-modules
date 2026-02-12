@@ -1,0 +1,384 @@
+From efb7da636fdd1e0267a85f55761039d1f92a8ffb Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Wed, 7 Oct 2026 10:54:06 +0200
+Subject: [PATCH 103/122] acpi: ipu7: fix ar0234 stereo fsync tx-id rx-id
+ mismatches
+
+* scripts: acpi: enable ar0234 fsync by default after mc graph binding
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ acpi/ipu7/_ser_common_max9295d.asl            | 57 +++++++++++++++++--
+ .../ipu7/max96724-air355_sl_ar0234_stereo.asl | 44 +++++++++++++-
+ ...exd-intrbl_sl_ar0234_stereo-mono-mixed.asl | 14 +++--
+ .../max96724-cexd-intrbl_sl_ar0234_stereo.asl | 13 ++++-
+ .../max96724-servoss_sl_ar0234_stereo.asl     | 17 +++---
+ script/acpi/mc-setup-zedx.sh                  |  2 +
+ 6 files changed, 126 insertions(+), 21 deletions(-)
+
+diff --git a/acpi/ipu7/_ser_common_max9295d.asl b/acpi/ipu7/_ser_common_max9295d.asl
+index 9fc0fbc0..4335f1bf 100644
+--- a/acpi/ipu7/_ser_common_max9295d.asl
++++ b/acpi/ipu7/_ser_common_max9295d.asl
+@@ -80,12 +80,18 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+         DESCH_SER_PATH,         // ResourceSourceIndex (Path to SER GPIO controller, e.g. "\\_SB.PC00.DESx.CHxx.SERx" based on which Link)
+         0)                      // ResourceUsage (Must be 0)
+     {
+-        DESCH_RESET_GPIO_PIN,
++        DESCH_RESET_GPIO_PIN,   // Pin 7 (e.g. MFP7 on MAX9295d)
+ #ifdef DESCH_RESET_GPIO_PIN2
+-        DESCH_RESET_GPIO_PIN2,
++        DESCH_RESET_GPIO_PIN2,  // Pin 8 (e.g. MFP8 on MAX9295d)
+ #endif
+ #ifdef DESCH_EXTRA_GPIO_PIN
+         DESCH_EXTRA_GPIO_PIN,
++#endif
++#ifdef DESCH_SER_FSIN_GPIO
++        DESCH_SER_FSIN_GPIO,	// Extra pin (e.g. MFP9 on MAX9295d)
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++        DESCH_SER_FSIN_GPIO_2,  // Extra pin (e.g. MFP10 on MAX9295d)
+ #endif
+     }
+ })
+@@ -104,6 +110,16 @@ Name (_DSD, Package ()  // _DSD: Device-Specific Data
+         // I2C alias pool used by i2c-atr driver.
+         // Address called out in the pool is used as Camera Alias Address.
+         Package () { "i2c-alias-pool",  Package() { CAM_ALIAS } },
++        /*
++         * External GMSL frame sync control, consumed by max96717.c.
++         * Disabled by default; define EXTERNAL_FRAME_SYNC (1) by the
++         * caller to override.
++         */
++#ifdef EXTERNAL_FRAME_SYNC
++        Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
++#else
++        Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
++#endif
+         },
+ #endif
+         ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
+@@ -114,18 +130,47 @@ Name (_DSD, Package ()  // _DSD: Device-Specific Data
+         Package () { "mipi-img-port-2", "PRT2" }, // Connected to DESx PRTx (used by SERx CSI2Bus LocalPort)
+     #ifdef DESCH_SER_X_VC
+         Package () { "Pipe-X", "PIPX" }, // Pipe X
+-        #endif
++    #endif
+     #ifdef DESCH_SER_Y_VC
+         Package () { "Pipe-Y", "PIPY" }, // Pipe Y
+-        #endif
++    #endif
+     #ifdef DESCH_SER_Z_VC
+         Package () { "Pipe-Z", "PIPZ" }, // Pipe Z
+-        #endif
++    #endif
+     #ifdef DESCH_SER_U_VC
+         Package () { "Pipe-U", "PIPU" }, // Pipe U
+-        #endif
++    #endif
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
++        Package () { "fsync", "MFP" }, // fsync pin configuration
++#endif
++#endif
++#endif
+         }
+ })
++#ifdef EXTERNAL_FRAME_SYNC
++#ifdef DESCH_SER_FSYNC_RX_ID
++#ifdef DESCH_SER_FSIN_GPIO
++Name (MFP, Package()
++{
++    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
++    Package ()
++    {
++        #ifdef DESCH_SER_FSYNC_RX_ID
++        Package () { "maxim,rx-id", DESCH_SER_FSYNC_RX_ID }, // GMSL GPIO ID sent by the DES
++        #endif
++        #ifdef DESCH_SER_FSIN_GPIO
++        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_FSIN_GPIO },
++        #endif
++        #ifdef DESCH_SER_FSIN_GPIO_2
++        Package () { "gmsl-frame-sync-gpio-pin-2", DESCH_SER_FSIN_GPIO_2 },
++        #endif
++    },
++})
++#endif
++#endif
++#endif
+ 
+ Name (PRT0, Package()
+ {
+diff --git a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+index feb0972f..cd997731 100644
+--- a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
++++ b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+@@ -50,7 +50,11 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+     {
+         Device (DES0)
+         {
+-            // DES-level defines for DES0
++            #define EXTERNAL_FRAME_SYNC 1
++            #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
++
++	    // DES-level defines for DES0
+             #define DES_PHY_TYPE 1
+             #define DES_I2C_ADDR 0x0027
+             #define DES_LANES 4
+@@ -75,6 +79,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_SER_GPIOREF ^^^SER1
+             #define DESCH_RESET_GPIO_PIN    7
+             #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+             #define CAM_ALIAS 0x66, 0x67
+@@ -92,6 +98,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DESCH_RESET_GPIO_PIN2
+             #undef DESCH_SER_X_VC
+             #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+ 
+@@ -106,6 +118,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_SER_GPIOREF ^^^SER2
+             #define DESCH_RESET_GPIO_PIN    7
+             #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+             #define CAM_ALIAS 0x66, 0x67
+@@ -123,6 +137,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DESCH_RESET_GPIO_PIN2
+             #undef DESCH_SER_X_VC
+             #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+ 
+@@ -138,11 +158,18 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DES_PATH
+             #undef DES_REF
+             #undef DES_PIPE_STR_AUTOSELECT
++#ifdef DESCH_SER_FSYNC_RX_ID
++            #undef DESCH_SER_FSYNC_RX_ID
++#endif
+             #undef DES_I2C_ALIAS_POOL
+         }
+ 
+         Device (DES1)
+         {
++            #define EXTERNAL_FRAME_SYNC 1
++            #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
++
+             // PHY0 data on port C, with the PHY1 clock driving two D-PHY lanes
+             #define DES_PHY_TYPE 1
+             #define DES_I2C_ADDR 0x0027
+@@ -184,6 +211,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DESCH_RESET_GPIO_PIN2
+             #undef DESCH_SER_X_VC
+             #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+ 
+@@ -215,6 +248,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DESCH_RESET_GPIO_PIN2
+             #undef DESCH_SER_X_VC
+             #undef DESCH_SER_Y_VC
++#ifdef DESCH_SER_FSIN_GPIO
++            #undef DESCH_SER_FSIN_GPIO
++#endif
++#ifdef DESCH_SER_FSIN_GPIO_2
++            #undef DESCH_SER_FSIN_GPIO_2
++#endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+ 
+@@ -229,6 +268,9 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DES_PATH
+             #undef DES_REF
+             #undef DES_PIPE_STR_AUTOSELECT
++#ifdef DESCH_SER_FSYNC_RX_ID
++            #undef DESCH_SER_FSYNC_RX_ID
++#endif
+             #undef DES_I2C_ALIAS_POOL
+         }
+     }
+diff --git a/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo-mono-mixed.asl b/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo-mono-mixed.asl
+index 6534bb89..4172550c 100644
+--- a/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo-mono-mixed.asl
++++ b/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo-mono-mixed.asl
+@@ -145,6 +145,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+         {
+             #define EXTERNAL_FRAME_SYNC 1
+             #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
+ 
+             // DES-level defines for DES1.
+             #define DES_PHY_TYPE 0
+@@ -179,7 +180,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+             #define DESCH_RESET_GPIO_PIN2   8
+             #define DESCH_SER_FSIN_GPIO 9
+             #define DESCH_SER_FSIN_GPIO_2 10
+-            #define DESCH_SER_FSYNC_RX_ID 9
+             #define CAM_ALIAS 0x66, 0x67
+             #define CAM_LANES 2
+             #define DESCH_SER_X_VC Package () { 1 }
+@@ -204,9 +204,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+ #endif
+ #ifdef DESCH_SER_FSIN_GPIO_2
+             #undef DESCH_SER_FSIN_GPIO_2
+-#endif
+-#ifdef DESCH_SER_FSYNC_RX_ID
+-            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+@@ -229,6 +226,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+ #endif
+ #ifdef DESCH_CAM_FSIN_GPIO
+             #undef DESCH_CAM_FSIN_GPIO
++#endif
++#ifdef EXTERNAL_FRAME_SYNC
++            #undef EXTERNAL_FRAME_SYNC
++#endif
++#ifdef EXTERNAL_FRAME_FREQ_HZ
++            #undef EXTERNAL_FRAME_FREQ_HZ
++#endif
++#ifdef DESCH_SER_FSYNC_RX_ID
++            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef DES_I2C_ALIAS_POOL
+         }
+diff --git a/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo.asl b/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo.asl
+index 381d3dbf..58bb1d0f 100644
+--- a/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo.asl
++++ b/acpi/ipu7/max96724-cexd-intrbl_sl_ar0234_stereo.asl
+@@ -73,6 +73,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+         {
+             #define EXTERNAL_FRAME_SYNC 1
+             #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
+ 
+             // DES-level defines for DES0
+             #define DES_PHY_TYPE 0
+@@ -132,9 +133,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+ #endif
+ #ifdef DESCH_SER_FSIN_GPIO_2
+             #undef DESCH_SER_FSIN_GPIO_2
+-#endif
+-#ifdef DESCH_SER_FSYNC_RX_ID
+-            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+@@ -157,6 +155,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
+ #endif
+ #ifdef DESCH_CAM_FSIN_GPIO
+             #undef DESCH_CAM_FSIN_GPIO
++#endif
++#ifdef EXTERNAL_FRAME_SYNC
++            #undef EXTERNAL_FRAME_SYNC
++#endif
++#ifdef EXTERNAL_FRAME_FREQ_HZ
++            #undef EXTERNAL_FRAME_FREQ_HZ
++#endif
++#ifdef DESCH_SER_FSYNC_RX_ID
++            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef DES_I2C_ALIAS_POOL
+         }
+diff --git a/acpi/ipu7/max96724-servoss_sl_ar0234_stereo.asl b/acpi/ipu7/max96724-servoss_sl_ar0234_stereo.asl
+index 8d46f2f4..fdde6190 100644
+--- a/acpi/ipu7/max96724-servoss_sl_ar0234_stereo.asl
++++ b/acpi/ipu7/max96724-servoss_sl_ar0234_stereo.asl
+@@ -64,6 +64,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+         {
+             #define EXTERNAL_FRAME_SYNC 1
+             #define EXTERNAL_FRAME_FREQ_HZ 30
++            #define DESCH_SER_FSYNC_RX_ID 9
+ 
+             // DES-level defines for DES0
+             #define DES_PHY_TYPE 0
+@@ -96,7 +97,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_RESET_GPIO_PIN2   8
+             #define DESCH_SER_FSIN_GPIO 9
+             #define DESCH_SER_FSIN_GPIO_2 10
+-            #define DESCH_SER_FSYNC_RX_ID 9
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+             #define CAM_ALIAS 0x66, 0x67
+@@ -121,9 +121,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+ #endif
+ #ifdef DESCH_SER_FSIN_GPIO_2
+             #undef DESCH_SER_FSIN_GPIO_2
+-#endif
+-#ifdef DESCH_SER_FSYNC_RX_ID
+-            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+@@ -166,9 +163,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+ #endif
+ #ifdef DESCH_SER_FSIN_GPIO_2
+             #undef DESCH_SER_FSIN_GPIO_2
+-#endif
+-#ifdef DESCH_SER_FSYNC_RX_ID
+-            #undef DESCH_SER_FSYNC_RX_ID
+ #endif
+             #undef CAM_ALIAS
+             #undef CAM_LANES
+@@ -185,6 +179,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #undef DES_PATH
+             #undef DES_REF
+             #undef DES_PIPE_STR_AUTOSELECT
++#ifdef EXTERNAL_FRAME_SYNC
++            #undef EXTERNAL_FRAME_SYNC
++#endif
++#ifdef EXTERNAL_FRAME_FREQ_HZ
++            #undef EXTERNAL_FRAME_FREQ_HZ
++#endif
++#ifdef DESCH_SER_FSYNC_RX_ID
++            #undef DESCH_SER_FSYNC_RX_ID
++#endif
+             #undef DES_I2C_ALIAS_POOL
+         }
+     }
+diff --git a/script/acpi/mc-setup-zedx.sh b/script/acpi/mc-setup-zedx.sh
+index 89fb8485..c110e2f1 100755
+--- a/script/acpi/mc-setup-zedx.sh
++++ b/script/acpi/mc-setup-zedx.sh
+@@ -915,6 +915,8 @@ for k in "${!CFG_LINKS[@]}"; do
+                 ;;
+             ar0234)
+                 out media-ctl -V "\"ar0234 ${cam}\":0/${p} [fmt:${fmt}/${size} field:none]"
++		# set frame-sync by default
++                echo 1 | tee /sys/module/ar0234/parameters/frame_sync
+                 initPsys=1
+                 symlink=1
+                 ;;
+-- 
+2.43.0
+

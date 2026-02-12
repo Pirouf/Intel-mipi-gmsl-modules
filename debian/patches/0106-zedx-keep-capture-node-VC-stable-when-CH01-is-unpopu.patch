@@ -1,0 +1,106 @@
+From 171a85968a31357bebf1456d59fb6c4cec19cea1 Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Tue, 20 Oct 2026 13:03:23 +0800
+Subject: [PATCH 106/122] zedx: keep capture node/VC stable when CH01 is
+ unpopulated
+
+With DES0.CH02 populated but DES0.CH01 empty, mc-setup-zedx.sh packed
+CH02 onto CSI2 streams 0/1 (Capture 0/1) and MAX96724 assigned output
+VCs first-free (VC0/1). The camera HAL config (ar0234stereo.json) pins
+acpi-3/4 to Capture 2/3 with vcId 2/3, so icamerasrc timed out or ran
+unsynced.
+
+- mc-setup-zedx.sh: give each ACPI-declared camera a fixed CSI2 base in
+  ACPI path order, so unpopulated channels keep their slots.
+- max_des: when VC is not kept, prefer the route's source stream number
+  as the destination VC (fall back to first free).
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ drivers/media/i2c/maxim-serdes/max_des.c | 12 ++++++++----
+ script/acpi/mc-setup-zedx.sh             | 24 ++++++++++++++++++++++--
+ 2 files changed, 30 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/media/i2c/maxim-serdes/max_des.c b/drivers/media/i2c/maxim-serdes/max_des.c
+index 1bd2f1a0..c2c0797d 100644
+--- a/drivers/media/i2c/maxim-serdes/max_des.c
++++ b/drivers/media/i2c/maxim-serdes/max_des.c
+@@ -496,7 +496,7 @@ static int max_des_set_pipe_vc_remaps(struct max_des_priv *priv,
+ 
+ static int max_des_map_src_dst_vc_id(struct max_des_remap_context *context,
+ 				     unsigned int pipe_id, unsigned int phy_id,
+-				     unsigned int src_vc_id, bool keep_vc)
++				     unsigned int src_vc_id, unsigned int pref_vc_id)
+ {
+ 	unsigned int vc_id;
+ 
+@@ -506,8 +506,9 @@ static int max_des_map_src_dst_vc_id(struct max_des_remap_context *context,
+ 	if (context->vc_ids_masks[pipe_id][phy_id] & BIT(src_vc_id))
+ 		return 0;
+ 
+-	if (keep_vc && !(context->dst_vc_ids_masks[phy_id] & BIT(src_vc_id)))
+-		vc_id = src_vc_id;
++	if (pref_vc_id < MAX_SERDES_VC_ID_NUM &&
++	    !(context->dst_vc_ids_masks[phy_id] & BIT(pref_vc_id)))
++		vc_id = pref_vc_id;
+ 	else
+ 		vc_id = ffz(context->dst_vc_ids_masks[phy_id]);
+ 
+@@ -703,7 +704,10 @@ static int max_des_populate_remap_context(struct max_des_priv *priv,
+ 		keep_vc = max_des_should_keep_vc(priv, &hw, modes);
+ 
+ 		ret = max_des_map_src_dst_vc_id(context, hw.pipe->index, hw.phy->index,
+-						hw.entry.bus.csi2.vc, keep_vc);
++						hw.entry.bus.csi2.vc,
++						/* else output stream N on VC N */
++						keep_vc ? hw.entry.bus.csi2.vc :
++							  route->source_stream);
+ 		if (ret)
+ 			return ret;
+ 	}
+diff --git a/script/acpi/mc-setup-zedx.sh b/script/acpi/mc-setup-zedx.sh
+index c110e2f1..5d3463f4 100755
+--- a/script/acpi/mc-setup-zedx.sh
++++ b/script/acpi/mc-setup-zedx.sh
+@@ -752,16 +752,36 @@ mapfile -t _sorted_k < <(
+         printf '%d %d %d %d\n' "${CFG_DES[$k]}" "${CFG_LINKS[$k]}" "${CFG_PHYS[$k]}" "$k"
+     done | sort -k1,1n -k2,2n -k3,3n
+ )
++# The camera HAL config pins each camera to a capture node/VC by its ACPI
++# position, so give every camera *declared* under a DES (populated or not) a
++# fixed CSI2 base in ACPI path order; unpopulated channels keep their slots.
++declare -A ACPI_CSI_BASE=()
++for ((d = 0; d < NUM_DES; d++)); do
++    n=0
++    while read -r cp model; do
++        ACPI_CSI_BASE[$cp]=$n
++        ns=(${MODEL_DEFAULT_STREAMS[$model]})
++        n=$((n + ${#ns[@]}))
++    done < <(for dir in /sys/bus/acpi/devices/*; do
++                 cp=$(cat "$dir/path" 2>/dev/null) || continue
++                 [[ $cp == "${DES_PATH[$d]}".* ]] || continue
++                 hid=$(acpi_hid "$dir")
++                 [ -n "$hid" ] || continue
++                 model=${SENSOR_MODEL[$hid]:-}
++                 [ -n "$model" ] && echo "$cp $model"
++             done | sort)
++done
+ for row in "${_sorted_k[@]}"; do
+     read -r d l p k <<<"$row"
+     lk="${d}_${l}"
+     ckey="${lk}_${p}"
+     SRC_BASE[$ckey]=${_src_ctr[$lk]:-0}
+-    CSI2_BASE[$k]=${_csi_ctr[$d]:-0}
++    cp=${CAM_PATH[$ckey]:-none}
++    CSI2_BASE[$k]=${ACPI_CSI_BASE[$cp]:-${_csi_ctr[$d]:-0}}
+     nsel=0
+     for s in ${CFG_STREAMS[$k]}; do nsel=$((nsel + 1)); done
+     _src_ctr[$lk]=$(( ${_src_ctr[$lk]:-0} + nsel ))
+-    _csi_ctr[$d]=$(( ${_csi_ctr[$d]:-0} + nsel ))
++    _csi_ctr[$d]=$(( ${CSI2_BASE[$k]} + nsel ))
+ done
+ 
+ echo "Setting Up:"
+-- 
+2.43.0
+

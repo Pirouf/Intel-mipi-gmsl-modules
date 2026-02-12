@@ -1,0 +1,25 @@
+From 6ae4ce1ab8e5ecd5d58f984bc0eb7ddf26fb024c Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 17 Nov 2026 09:47:22 +0100
+Subject: [PATCH 119/122] acpi: ipu7: add missing ASL camera vendor template
+ files
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ ...234_isx031.asl => max96724-servoss_mixed_d3_ar0234_isx031.asl} | 0
+ ...nsing_isx031_fs.asl => max96724-servoss_sensing_isx031_fs.asl} | 0
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ rename acpi/ipu7/{max96724_mixed_d3_ar0234_isx031.asl => max96724-servoss_mixed_d3_ar0234_isx031.asl} (100%)
+ rename acpi/ipu7/{max96724_sensing_isx031_fs.asl => max96724-servoss_sensing_isx031_fs.asl} (100%)
+
+diff --git a/acpi/ipu7/max96724_mixed_d3_ar0234_isx031.asl b/acpi/ipu7/max96724-servoss_mixed_d3_ar0234_isx031.asl
+similarity index 100%
+rename from acpi/ipu7/max96724_mixed_d3_ar0234_isx031.asl
+rename to acpi/ipu7/max96724-servoss_mixed_d3_ar0234_isx031.asl
+diff --git a/acpi/ipu7/max96724_sensing_isx031_fs.asl b/acpi/ipu7/max96724-servoss_sensing_isx031_fs.asl
+similarity index 100%
+rename from acpi/ipu7/max96724_sensing_isx031_fs.asl
+rename to acpi/ipu7/max96724-servoss_sensing_isx031_fs.asl
+-- 
+2.43.0
+

@@ -1,0 +1,51 @@
+From caa08db5a731bcfda6f111442579df19c9008da0 Mon Sep 17 00:00:00 2001
+From: Stanley <stanley.chang@intel.com>
+Date: Tue, 20 Oct 2026 07:55:42 +0800
+Subject: [PATCH 105/122] acpi: add fsync pins for AIR355 DES1 ZED X
+ serializers
+
+DES1 enables EXTERNAL_FRAME_SYNC and DESCH_SER_FSYNC_RX_ID, so each
+serializer gets gmsl-frame-sync-enable=1, but DES1 channels did not
+define DESCH_SER_FSIN_GPIO/_2. The serializer template only emits the
+"fsync" -> MFP child node when DESCH_SER_FSIN_GPIO is defined, so
+max_ser_parse_frame_sync() failed on DES1.CH01.SER1:
+
+  max96717 i2c-INTC1140:02: External GMSL frame_sync requested but no
+  fsync node found
+  max96717 i2c-INTC1140:02: probe with driver max96717 failed with error -22
+
+and the second ZED X (MIPI-2/I2C2) never appeared in the media graph.
+
+Use the same MFP9/MFP10 FSIN pins as DES0, matching the identical
+ZED X serializer hardware.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+index 1930e53d..8ec96ed7 100644
+--- a/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
++++ b/acpi/ipu7/max96724-air355_sl_ar0234_stereo.asl
+@@ -195,6 +195,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_SER_GPIOREF ^^^SER1
+             #define DESCH_RESET_GPIO_PIN    7
+             #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+             #define CAM_ALIAS 0x66, 0x67
+@@ -232,6 +234,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
+             #define DESCH_SER_GPIOREF ^^^SER2
+             #define DESCH_RESET_GPIO_PIN    7
+             #define DESCH_RESET_GPIO_PIN2   8
++            #define DESCH_SER_FSIN_GPIO 9
++            #define DESCH_SER_FSIN_GPIO_2 10
+             #define DESCH_SER_X_VC Package () { 1 }
+             #define DESCH_SER_Y_VC Package () { 0 }
+             #define CAM_ALIAS 0x68, 0x6a
+-- 
+2.43.0
+
