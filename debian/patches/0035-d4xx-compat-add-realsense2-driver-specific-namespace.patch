@@ -1,0 +1,162 @@
+From 2fa3213120ffafe412ad434733706cdf15149663 Mon Sep 17 00:00:00 2001
+From: Florent Pirou <florent.pirou@intel.com>
+Date: Fri, 29 Aug 2025 06:48:40 -0700
+Subject: [PATCH 35/80] d4xx-compat: add realsense2 driver specific namespace
+
+Signed-off-by: Florent Pirou <florent.pirou@intel.com>
+---
+ Makefile                                                  | 4 ++--
+ drivers/media/i2c/d4xx-compat/Makefile                    | 4 ++--
+ .../media/i2c/d4xx-compat/{max9295.c => d4xx-max9295.c}   | 8 ++++----
+ .../media/i2c/d4xx-compat/{max9296.c => d4xx-max9296.c}   | 6 +++---
+ drivers/media/i2c/d4xx-compat/d4xx.c                      | 8 ++++----
+ include/media/{max9295.h => i2c/d4xx-max9295.h}           | 0
+ include/media/{max9296.h => i2c/d4xx-max9296.h}           | 0
+ 7 files changed, 15 insertions(+), 15 deletions(-)
+ rename drivers/media/i2c/d4xx-compat/{max9295.c => d4xx-max9295.c} (99%)
+ rename drivers/media/i2c/d4xx-compat/{max9296.c => d4xx-max9296.c} (99%)
+ rename include/media/{max9295.h => i2c/d4xx-max9295.h} (100%)
+ rename include/media/{max9296.h => i2c/d4xx-max9296.h} (100%)
+
+diff --git a/Makefile b/Makefile
+index 1d2175ef..6fa5bbb1 100644
+--- a/Makefile
++++ b/Makefile
+@@ -64,8 +64,8 @@ endif
+ endif
+ export CONFIG_MEDIA_CONTROLLER=m
+ export CONFIG_VIDEO_D4XX=m
+-export CONFIG_I2C_IOEXPANDER_SER_MAX9295 = m
+-export CONFIG_I2C_IOEXPANDER_DESER_MAX9296 = m
++export CONFIG_VIDEO_D4XX_MAX9295 = m
++export CONFIG_VIDEO_D4XX_MAX9296 = m
+ export CONFIG_VIDEO_D4XX_COMPAT=m
+ 
+ # Define config macros for conditional compilation in ipu-acpi.c
+diff --git a/drivers/media/i2c/d4xx-compat/Makefile b/drivers/media/i2c/d4xx-compat/Makefile
+index 4a2b5835..8875a1a2 100644
+--- a/drivers/media/i2c/d4xx-compat/Makefile
++++ b/drivers/media/i2c/d4xx-compat/Makefile
+@@ -6,6 +6,6 @@ KERNEL_VERSION := $(shell echo $(KERNELRELEASE) | cut -d- -f1 | sed -r 's/([0-9]
+ ccflags-y += -I$(src)/../../../$(KERNEL_VERSION)/include-overrides
+ ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DCONFIG_SYSFS  -DPLATFORM_AXIOMTEK
+ 
+-obj-$(CONFIG_I2C_IOEXPANDER_SER_MAX9295) += max9295.o
+-obj-$(CONFIG_I2C_IOEXPANDER_DESER_MAX9296) += max9296.o
++obj-$(CONFIG_VIDEO_D4XX_MAX9295) += d4xx-max9295.o
++obj-$(CONFIG_VIDEO_D4XX_MAX9296) += d4xx-max9296.o
+ obj-$(CONFIG_VIDEO_D4XX_COMPAT) += d4xx.o
+diff --git a/drivers/media/i2c/d4xx-compat/max9295.c b/drivers/media/i2c/d4xx-compat/d4xx-max9295.c
+similarity index 99%
+rename from drivers/media/i2c/d4xx-compat/max9295.c
+rename to drivers/media/i2c/d4xx-compat/d4xx-max9295.c
+index a42f1ac9..c1bfc210 100644
+--- a/drivers/media/i2c/d4xx-compat/max9295.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max9295.c
+@@ -24,7 +24,7 @@
+ #include <linux/module.h>
+ #include <linux/regmap.h>
+ #include <linux/version.h>
+-#include <media/max9295.h>
++#include <media/i2c/d4xx-max9295.h>
+ 
+ /* register specifics */
+ #define MAX9295_MIPI_RX0_ADDR 0x330
+@@ -843,12 +843,12 @@ static void max9295_remove(struct i2c_client *client)
+ }
+ 
+ static const struct i2c_device_id max9295_id[] = {
+-	{ "max9295", 0 },
++	{ "d4xx-max9295", 0 },
+ 	{ },
+ };
+ 
+ static const struct of_device_id max9295_of_match[] = {
+-	{ .compatible = "maxim,max9295", },
++	{ .compatible = "maxim,d4xx-max9295", },
+ 	{ },
+ };
+ MODULE_DEVICE_TABLE(of, max9295_of_match);
+@@ -856,7 +856,7 @@ MODULE_DEVICE_TABLE(i2c, max9295_id);
+ 
+ static struct i2c_driver max9295_i2c_driver = {
+ 	.driver = {
+-		.name = "max9295",
++		.name = "d4xx-max9295",
+ 		.owner = THIS_MODULE,
+ 	},
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+diff --git a/drivers/media/i2c/d4xx-compat/max9296.c b/drivers/media/i2c/d4xx-compat/d4xx-max9296.c
+similarity index 99%
+rename from drivers/media/i2c/d4xx-compat/max9296.c
+rename to drivers/media/i2c/d4xx-compat/d4xx-max9296.c
+index 0405a5ee..a550c642 100644
+--- a/drivers/media/i2c/d4xx-compat/max9296.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max9296.c
+@@ -28,7 +28,7 @@
+ #include <linux/version.h>
+ // #include <media/camera_common.h>
+ #include <linux/regmap.h>
+-#include <media/max9296.h>
++#include <media/i2c/d4xx-max9296.h>
+ 
+ /* register specifics */
+ #define MAX9296_DST_CSI_MODE_ADDR 0x330
+@@ -1266,7 +1266,7 @@ static void max9296_remove(struct i2c_client *client)
+ }
+ 
+ static const struct i2c_device_id max9296_id[] = {
+-	{ "max9296", 0 },
++	{ "d4xx-max9296", 0 },
+ 	{ },
+ };
+ 
+@@ -1274,7 +1274,7 @@ MODULE_DEVICE_TABLE(i2c, max9296_id);
+ 
+ static struct i2c_driver max9296_i2c_driver = {
+ 	.driver = {
+-		.name = "max9296",
++		.name = "d4xx-max9296",
+ 		.owner = THIS_MODULE,
+ 		.of_match_table = of_match_ptr(max9296_of_match),
+ 	},
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index e5870214..a7af5e45 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -41,8 +41,8 @@
+ #include <media/v4l2-mediabus.h>
+ 
+ #ifdef CONFIG_VIDEO_D4XX_SERDES
+-#include <media/max9295.h>
+-#include <media/max9296.h>
++#include <media/i2c/d4xx-max9295.h>
++#include <media/i2c/d4xx-max9296.h>
+ #else
+ #include <media/gmsl-link.h>
+ #define GMSL_CSI_DT_YUV422_8 0x1E
+@@ -3258,11 +3258,11 @@ static int ds5_board_setup(struct ds5 *state)
+ 		.d4xx_hacks = 1,
+ 	};
+ 	static struct i2c_board_info i2c_info_des = {
+-		I2C_BOARD_INFO("max9296", 0x48),
++		I2C_BOARD_INFO("d4xx-max9296", 0x48),
+ 		.platform_data = &max9296_pdata,
+ 	};
+ 	static struct i2c_board_info i2c_info_ser = {
+-		I2C_BOARD_INFO("max9295", 0x42),
++		I2C_BOARD_INFO("d4xx-max9295", 0x42),
+ 		.platform_data = &max9295_pdata,
+ 	};
+ 
+diff --git a/include/media/max9295.h b/include/media/i2c/d4xx-max9295.h
+similarity index 100%
+rename from include/media/max9295.h
+rename to include/media/i2c/d4xx-max9295.h
+diff --git a/include/media/max9296.h b/include/media/i2c/d4xx-max9296.h
+similarity index 100%
+rename from include/media/max9296.h
+rename to include/media/i2c/d4xx-max9296.h
+-- 
+2.25.1
+

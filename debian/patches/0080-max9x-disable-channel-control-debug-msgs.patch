@@ -1,0 +1,40 @@
+From e8537c2c0d4dc52fa485c1df498e0b769e9b5176 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 30 Jun 2026 14:29:38 +0200
+Subject: [PATCH 80/80] max9x: disable channel control debug msgs
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/max9x/max9295.c  | 2 +-
+ drivers/media/i2c/max9x/max96724.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/max9x/max9295.c b/drivers/media/i2c/max9x/max9295.c
+index 32f4f603..e178323b 100644
+--- a/drivers/media/i2c/max9x/max9295.c
++++ b/drivers/media/i2c/max9x/max9295.c
+@@ -665,7 +665,7 @@ static int max9295_set_local_control_channel_enabled(struct max9x_common *common
+ 	struct device *dev = common->dev;
+ 	struct regmap *map = common->map;
+ 
+-	dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
++	//dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
+ 
+ 	return regmap_update_bits_retry(map, MAX9295_PHY_REM_CTRL, MAX9295_PHY_LOCAL_CTRL_DIS_FIELD,
+ 				  MAX9X_FIELD_PREP(MAX9295_PHY_LOCAL_CTRL_DIS_FIELD,  (enabled ? 0U : 1U)));
+diff --git a/drivers/media/i2c/max9x/max96724.c b/drivers/media/i2c/max9x/max96724.c
+index 1e2d78ba..25e47d04 100644
+--- a/drivers/media/i2c/max9x/max96724.c
++++ b/drivers/media/i2c/max9x/max96724.c
+@@ -896,7 +896,7 @@ static int max96724_set_remote_control_channel_enabled(struct max9x_common *comm
+ 
+ 	// Note that the register value 1 *disables* port-to-remote command & control
+ 	mutex_lock(lock);
+-	dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
++	//dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
+ 	if (enabled) {
+ 		ret = regmap_write(map, MAX96724_REM_CC,
+ 			~(MAX9X_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(link_id, 0), enabled ? 1 : 0)));
+-- 
+2.25.1
+

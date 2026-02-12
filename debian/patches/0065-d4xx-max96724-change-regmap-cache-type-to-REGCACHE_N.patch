@@ -1,0 +1,59 @@
+From 3815dec2915a0154182a81cad05d2fdea07af528 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Wed, 15 Jul 2026 02:25:35 -0700
+Subject: [PATCH 65/80] d4xx-max96724: change regmap cache type to
+ REGCACHE_NONE
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+Signed-off-by: Nikolai-L <nlyskov@realsenseai.com>
+---
+ drivers/media/i2c/d4xx-compat/d4xx-max9295.c  | 3 ++-
+ drivers/media/i2c/d4xx-compat/d4xx-max9296.c  | 3 ++-
+ drivers/media/i2c/d4xx-compat/d4xx-max96724.c | 3 ++-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx-max9295.c b/drivers/media/i2c/d4xx-compat/d4xx-max9295.c
+index b914ee51..ad07d98a 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx-max9295.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max9295.c
+@@ -687,7 +687,8 @@ EXPORT_SYMBOL(max9295_sdev_unpair);
+ static  struct regmap_config max9295_regmap_config = {
+ 	.reg_bits = 16,
+ 	.val_bits = 8,
+-	.cache_type = REGCACHE_RBTREE,
++	/* As this driver remaps i2c addresses, the cache is unreliable */
++	.cache_type = REGCACHE_NONE,
+ };
+ 
+ struct reg_pair {
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx-max9296.c b/drivers/media/i2c/d4xx-compat/d4xx-max9296.c
+index ed05e147..3857eed6 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx-max9296.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max9296.c
+@@ -1188,7 +1188,8 @@ static int max9296_parse_pdata(struct max9296 *priv,
+ static struct regmap_config max9296_regmap_config = {
+ 	.reg_bits = 16,
+ 	.val_bits = 8,
+-	.cache_type = REGCACHE_RBTREE,
++	/* As this driver remaps i2c addresses, the cache is unreliable */
++	.cache_type = REGCACHE_NONE,
+ };
+ 
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+index 87788c93..fb57b2fa 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx-max96724.c
+@@ -3021,7 +3021,8 @@ static int max96724_parse_pdata(struct max96724 *priv,
+ static struct regmap_config max96724_regmap_config = {
+ 	.reg_bits = 16,
+ 	.val_bits = 8,
+-	.cache_type = REGCACHE_RBTREE,
++	/* As this driver remaps i2c addresses, the cache is unreliable */
++	.cache_type = REGCACHE_NONE,
+ };
+ 
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+-- 
+2.25.1
+

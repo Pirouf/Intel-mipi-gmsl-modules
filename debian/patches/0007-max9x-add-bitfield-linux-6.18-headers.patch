@@ -1,0 +1,77 @@
+From 5f2492acaf704b51870d11d6e5e7dae3b4ced2f5 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 17 Jul 2026 06:17:16 -0700
+Subject: [PATCH 07/80] max9x: add bitfield linux 6.18 headers
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ drivers/media/i2c/max9x/max9295.c  | 1 +
+ drivers/media/i2c/max9x/max9296.c  | 1 +
+ drivers/media/i2c/max9x/max96717.c | 1 +
+ drivers/media/i2c/max9x/max96724.c | 1 +
+ drivers/media/i2c/max9x/serdes.c   | 1 +
+ 5 files changed, 5 insertions(+)
+
+diff --git a/drivers/media/i2c/max9x/max9295.c b/drivers/media/i2c/max9x/max9295.c
+index b2757356..7c5347e9 100644
+--- a/drivers/media/i2c/max9x/max9295.c
++++ b/drivers/media/i2c/max9x/max9295.c
+@@ -28,6 +28,7 @@
+ #include <linux/pm.h>
+ #include <linux/regmap.h>
+ #include <linux/slab.h>
++#include <linux/bitfield.h>
+ 
+ #include "max9295.h"
+ #include "regmap-retry.h"
+diff --git a/drivers/media/i2c/max9x/max9296.c b/drivers/media/i2c/max9x/max9296.c
+index b7ba93b5..dd16e71d 100644
+--- a/drivers/media/i2c/max9x/max9296.c
++++ b/drivers/media/i2c/max9x/max9296.c
+@@ -27,6 +27,7 @@
+ #include <linux/pm.h>
+ #include <linux/regmap.h>
+ #include <linux/slab.h>
++#include <linux/bitfield.h>
+ 
+ #include "max9296.h"
+ 
+diff --git a/drivers/media/i2c/max9x/max96717.c b/drivers/media/i2c/max9x/max96717.c
+index 12b5fb21..cff0a96d 100644
+--- a/drivers/media/i2c/max9x/max96717.c
++++ b/drivers/media/i2c/max9x/max96717.c
+@@ -29,6 +29,7 @@
+ #include <linux/regmap.h>
+ #include <linux/sysfs.h>
+ #include <linux/slab.h>
++#include <linux/bitfield.h>
+ 
+ #include "max96717.h"
+ 
+diff --git a/drivers/media/i2c/max9x/max96724.c b/drivers/media/i2c/max9x/max96724.c
+index 799cc904..1e2d78ba 100644
+--- a/drivers/media/i2c/max9x/max96724.c
++++ b/drivers/media/i2c/max9x/max96724.c
+@@ -28,6 +28,7 @@
+ #include <linux/regmap.h>
+ #include <linux/sysfs.h>
+ #include <linux/slab.h>
++#include <linux/bitfield.h>
+ 
+ #include "max96724.h"
+ #include "regmap-retry.h"
+diff --git a/drivers/media/i2c/max9x/serdes.c b/drivers/media/i2c/max9x/serdes.c
+index 8f9e63ba..9e11d905 100644
+--- a/drivers/media/i2c/max9x/serdes.c
++++ b/drivers/media/i2c/max9x/serdes.c
+@@ -29,6 +29,7 @@
+ #include <linux/slab.h>
+ #include <linux/pm.h>
+ #include <linux/of_gpio.h>
++#include <linux/bitfield.h>
+ 
+ #include "serdes.h"
+ #include "regmap-retry.h"
+-- 
+2.25.1
+

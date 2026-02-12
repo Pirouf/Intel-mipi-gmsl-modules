@@ -1,0 +1,38 @@
+From db8b22da692f9d6521a12ba4a0b3bda406495806 Mon Sep 17 00:00:00 2001
+From: Remi Bettan <remibettan@gmail.com>
+Date: Thu, 20 Feb 2025 10:50:43 +0200
+Subject: [PATCH 51/80] d4xx-compat: cherry-pick realsense_mipi commit 38fc023
+
+---
+ drivers/media/i2c/d4xx-compat/d4xx.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/media/i2c/d4xx-compat/d4xx.c b/drivers/media/i2c/d4xx-compat/d4xx.c
+index 50c9e6c3..d292916c 100644
+--- a/drivers/media/i2c/d4xx-compat/d4xx.c
++++ b/drivers/media/i2c/d4xx-compat/d4xx.c
+@@ -1630,7 +1630,7 @@ static int ds5_setup_pipeline(struct ds5 *state, u8 data_type1, u8 data_type2,
+ 			      int pipe_id, u32 vc_id)
+ {
+ 	int ret = 0;
+-	dev_dbg(&state->client->dev,
++	dev_warn(&state->client->dev,
+ 			 "set pipe %d, data_type1: 0x%x, \
+ 			 data_type2: 0x%x, vc_id: %u\n",
+ 			 pipe_id, data_type1, data_type2, vc_id);
+@@ -1712,8 +1712,10 @@ static int ds5_configure(struct ds5 *state)
+ 
+ #ifdef CONFIG_VIDEO_D4XX_SERDES
+ 	data_type1 = sensor->config.format->data_type;
+-	data_type2 = state->is_y8 ? 0x00 : md_fmt;
+-
++	data_type2 = state->is_imu ? 0x00 : md_fmt;
++	/* do not have metadata for y12i */
++	if (state->is_y8 && data_type1 == GMSL_CSI_DT_RGB_888)
++		data_type2 = 0;
+ 	vc_id = state->g_ctx.dst_vc;
+ 
+ 	ret = ds5_setup_pipeline(state, data_type1, data_type2, sensor->pipe_id,
+-- 
+2.25.1
+

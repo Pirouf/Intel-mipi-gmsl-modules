@@ -1,0 +1,17 @@
+Document: intel-mipi-gmsl-dkms
+Title: Intel MIPI GMSL CSI-2 Camera Driver Documentation
+Author: Intel Corporation
+Abstract: Technical documentation for the Intel MIPI GMSL camera driver
+ package. This document covers kernel-space DKMS compilation, platform ACPI
+ SSDT overrides (for AR0234, D457, and ISX031 sensors), board-specific
+ GMSL deserializer configuration (MAX96724, MAX9296), and multimedia pipeline 
+ integration guides.
+Section: Science/Electronics
+
+Format: text
+Index: /usr/share/doc/intel-mipi-gmsl-dkms/README.md
+Files: /usr/share/doc/intel-mipi-gmsl-dkms/README.md
+       /usr/share/doc/intel-mipi-gmsl-dkms/doc/acpi/*.md
+       /usr/share/doc/intel-mipi-gmsl-dkms/doc/ar0234/*.md
+       /usr/share/doc/intel-mipi-gmsl-dkms/doc/d4xx/*.md
+       /usr/share/doc/intel-mipi-gmsl-dkms/doc/isx031/*.md
