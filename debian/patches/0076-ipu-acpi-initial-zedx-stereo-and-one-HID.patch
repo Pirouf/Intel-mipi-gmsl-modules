@@ -1,0 +1,242 @@
+From cd6d9d0032b37fa705e6ac67fd4cdaf6281a637a Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 12 May 2026 04:47:40 -0700
+Subject: [PATCH 76/80] ipu-acpi: initial zedx stereo and one HID
+
+* ipu-acpi: two HIDs for sl_max9296 and sl_max96724
+* ipu-acpi: intel max9x HID test only zedx one gs
+* makefile: compile zedx HIDs
+* acpi-ipu: add max9x generic zed-x stereo HIDs
+* ipu-acpi: set zedx mfp7 and mpf8  push-pull
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ Makefile                                      |   2 +
+ drivers/media/platform/intel/ipu-acpi-pdata.c |  22 +++-
+ drivers/media/platform/intel/ipu-acpi.c       | 101 ++++++++++++++++++
+ include/media/serdes-pdata.h                  |   2 +-
+ 4 files changed, 124 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 75ba8bb4..5496a6cc 100644
+--- a/Makefile
++++ b/Makefile
+@@ -41,6 +41,7 @@ export CONFIG_VIDEO_AR0233=m
+ export CONFIG_VIDEO_AR0820=m
+ export CONFIG_VIDEO_AR0830=m
+ export CONFIG_VIDEO_AR0234=m
++export CONFIG_VIDEO_ZEDX=m
+ export CONFIG_VIDEO_ISX031=m
+ export CONFIG_VIDEO_IMX415=m
+ export CONFIG_VIDEO_IMX586=m
+@@ -85,6 +86,7 @@ subdir-ccflags-$(CONFIG_VIDEO_AR0820) += -DCONFIG_VIDEO_AR0820
+ subdir-ccflags-$(CONFIG_VIDEO_AR0234) += -DCONFIG_VIDEO_AR0234 -DCONFIG_V4L2_CCI_I2C
+ subdir-ccflags-$(CONFIG_VIDEO_IMX415) += -DCONFIG_VIDEO_IMX415
+ subdir-ccflags-$(CONFIG_VIDEO_IMX586) += -DCONFIG_VIDEO_IMX586
++subdir-ccflags-$(CONFIG_VIDEO_ZEDX) += -DCONFIG_VIDEO_ZEDX
+ subdir-ccflags-$(CONFIG_IPU_BRIDGE) += -DCONFIG_IPU_BRIDGE
+ subdir-ccflags-$(CONFIG_INTEL_IPU_ACPI) += -DCONFIG_INTEL_IPU_ACPI
+ subdir-ccflags-$(CONFIG_VIDEO_LT6911UXE) += -DCONFIG_VIDEO_LT6911UXE
+diff --git a/drivers/media/platform/intel/ipu-acpi-pdata.c b/drivers/media/platform/intel/ipu-acpi-pdata.c
+index 6c9a03dd..ce5cf411 100644
+--- a/drivers/media/platform/intel/ipu-acpi-pdata.c
++++ b/drivers/media/platform/intel/ipu-acpi-pdata.c
+@@ -673,6 +673,9 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
+ 		serdes_sdinfo[i].board_info.platform_data = module_pdata[i];
+ 
+ 		/* serdes_subdev_info */
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++		serdes_sdinfo[i].aggregated_link = 1;
++#endif
+ 		serdes_sdinfo[i].rx_port = i;
+ 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
+ 
+@@ -740,22 +743,26 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
+ 				 SUFFIX_BASE + i + (*pdata)->des_port , port);
+ 		} else {
+ 			if (i >= 1) {
+-				serdes_sdinfo[i].aggregated_link = i;
+ 				serdes_suffix = (*pdata)->suffix + i;
+ 				pr_info("IPU ACPI: Add %s %cnamespacing on aggregated-link sensors %d",
+ 					sensor_name,
+ 					serdes_suffix,
+ 					serdes_info.deser_num);
+ 			} else {
+-				serdes_sdinfo[i].aggregated_link = 0;
+ 				serdes_suffix = (*pdata)->suffix;
+ 			}
++			serdes_sdinfo[i].aggregated_link = 1; //default one sensor per-SER
+ 			snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
+ 				 SUFFIX_BASE + i, port);
+ 		}
+ #else
+ 	        snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
+ 			 SUFFIX_BASE + i, port);
++#endif
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++		if ((!strcmp(hid_name, "INTC234Z")) ||
++		    (!strcmp(hid_name, "INTC031Z"))) // Stereo Zed-X two sensors per-SER
++			serdes_sdinfo[i].aggregated_link = 2;
+ #endif
+ 		serdes_sdinfo[i].ser_phys_addr = serdes_info.ser_phys_addr;
+ 
+@@ -842,6 +849,17 @@ int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
+ 				lanes = 2;
+ 				subdev_num = 1;
+ 			}
++#endif
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++			/* Stereo Zed-X two sensors per-SER must be 4 subdev PDATA
++			 * fallback from PDATA corner-cases
++			 *  leading to max9x ar0234 misconfiguration
++			 */
++			if ((!strcmp(hid_name, "INTC234Z")) ||
++			    (!strcmp(hid_name, "INTC031Z")) &&
++			    (subdev_num != 4)) {
++				subdev_num = 4;
++			}
+ #endif
+ 		pdata->bus_type = (*sensor_sd)->csi2->bus_type;
+ 		pdata->deser_nlanes = deser_lanes;
+diff --git a/drivers/media/platform/intel/ipu-acpi.c b/drivers/media/platform/intel/ipu-acpi.c
+index 52aa1b91..5d078f9e 100644
+--- a/drivers/media/platform/intel/ipu-acpi.c
++++ b/drivers/media/platform/intel/ipu-acpi.c
+@@ -172,6 +172,28 @@ static const struct ipu_acpi_devices supported_devices[] = {
+ 		.sensor_dt = MIPI_CSI2_TYPE_YUV422_8,
+ 	},
+ #endif
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++	{
++		.hid_name = "INTC031Z",
++		.real_driver = ISX031_NAME,
++		.get_platform_data = get_sensor_pdata,
++		.priv_data = NULL,
++		.priv_size = 0,
++		.connect = TYPE_SERDES,
++		.serdes_name = "max9x",
++		.sensor_physical_addr = ISX031_I2C_ADDRESS,
++		.link_freq = 1600,
++		.ser_physical_addr = 0x42,
++		.ser_gpio = {
++			{
++				.chip_hwnum = 0,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN,
++			},
++		},
++		.sensor_dt = MIPI_CSI2_TYPE_YUV422_8,
++	},//  INTEL generic max9x HID for ZED-X-ONE ISX031 test-purpose-only
++#endif
+ #if IS_ENABLED(CONFIG_VIDEO_AR0820)
+ 	{ 
+ 		.hid_name = "AR0820",
+@@ -249,6 +271,78 @@ static const struct ipu_acpi_devices supported_devices[] = {
+ 	},// AR0234 HID
+ #endif
+ #endif
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++	{
++		.hid_name = "INTC234O",
++		.real_driver = AR0234_NAME,
++		.get_platform_data = get_sensor_pdata,
++		.priv_data = NULL,
++		.priv_size = 0,
++		.connect = TYPE_SERDES,
++		.serdes_name = "max9x",
++		.sensor_physical_addr = 0x10,
++		.link_freq = 1200,
++		.ser_physical_addr = 0x42,
++		.ser_gpio = {
++			{
++				.chip_hwnum = 0,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW,
++			},
++		},
++		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
++	},//  INTEL generic max9x HID for ZED-X-ONE AR0234 test-purpose-only
++	{
++		.hid_name = "INTC234Z",
++		.real_driver = AR0234_NAME,
++		.get_platform_data = get_sensor_pdata,
++		.priv_data = NULL,
++		.priv_size = 0,
++		.connect = TYPE_SERDES,
++		.serdes_name = "max9x",
++		.sensor_physical_addr = 0x10,
++		.link_freq = 1200,
++		.ser_physical_addr = 0x62,
++		.ser_gpio = {
++			{
++				.chip_hwnum = 0,
++				.con_id = "ignore",
++				.flags = GPIO_ACTIVE_HIGH,
++			},
++			{
++				.chip_hwnum = 8,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW,
++			},
++			{
++				.chip_hwnum = 7,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW,
++			},
++		},
++		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
++	},//  INTEL generic max9x HID for ZED-X (stereo AR0234 LEFT+RIGHT) test-purpose-only
++	{
++		.hid_name = "INTC234M",
++		.real_driver = AR0234_NAME,
++		.get_platform_data = get_sensor_pdata,
++		.priv_data = NULL,
++		.priv_size = 0,
++		.connect = TYPE_SERDES,
++		.serdes_name = "max9x",
++		.sensor_physical_addr = 0x18,
++		.link_freq = 1200,
++		.ser_physical_addr = 0x62,
++		.ser_gpio = {
++			{
++				.chip_hwnum = 7,
++				.con_id = "reset",
++				.flags = GPIO_ACTIVE_LOW,
++			},
++		},
++		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
++	},//  INTEL generic max9x HID for ZED-X (stereo AR0234 just RIGHT) test-purpose-only
++#endif
+ #if IS_ENABLED(CONFIG_VIDEO_D4XX)
+ 	{ 
+ 		.hid_name = "INTC10CD",
+@@ -305,6 +399,13 @@ static const struct acpi_device_id ipu_acpi_match[] = {
+ #if IS_ENABLED(CONFIG_VIDEO_AR0234)
+ 	{ "INTC0234", 0 },
+ #endif
++#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
++	{ "ZEDX234M", 0 },	// ZED-X and ZED-X-ONE HID max9296
++	{ "ZEDX234L", 0 },	// ZED-X and ZED-X-ONE HID max96724
++	{ "INTC234O", 0 },	// Intel generic max9x HID for ZED-X-ONE (ar0234 + max9295a)
++	{ "INTC234Z", 0 },	// Intel generic max9x HID for ZED-X stereo (ar0234 + max9295d)
++	{ "INTC234M", 0 },	// Intel generic max9x HID for ZED-X mini stereo (ar0234 + max9295d)
++#endif
+ #if IS_ENABLED(CONFIG_VIDEO_D4XX)
+ 	{ "INTC10CD", 0 },	// D457 HID
+ #endif
+diff --git a/include/media/serdes-pdata.h b/include/media/serdes-pdata.h
+index ca321b00..c50e7567 100644
+--- a/include/media/serdes-pdata.h
++++ b/include/media/serdes-pdata.h
+@@ -16,7 +16,7 @@ struct serdes_subdev_info {
+ 	unsigned short ser_phys_addr;
+ 	unsigned int sensor_dt;
+ 	struct gpiod_lookup ser_gpio[MAX_SER_GPIO_NUM];
+-#if IS_ENABLED(CONFIG_VIDEO_D4XX)
++#if IS_ENABLED(CONFIG_VIDEO_D4XX) || IS_ENABLED(CONFIG_VIDEO_ZEDX)
+ 	unsigned short aggregated_link;
+ #endif
+ };
+-- 
+2.25.1
+
