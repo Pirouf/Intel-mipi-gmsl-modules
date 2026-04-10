@@ -116,6 +116,13 @@ static struct max9x_desc max9x_chips[] = {
 		.chip_type = MAX9295,
 		.get_max9x_ops = max9x_get_ops,
 	},
+	[MAX9295d] = {
+		.dev_id = 0x95,
+		.rev_reg = 0xE,
+		.serdes_type = MAX9X_SERIALIZER,
+		.chip_type = MAX9295,
+		.get_max9x_ops = max9x_get_ops,
+	},
 	/*need to check dev_id and others when used*/
 	[MAX96717] = {
 		.dev_id = 0x91,
@@ -130,6 +137,7 @@ static const struct of_device_id max9x_of_match[] = {
 	{ .compatible = "max9x,max9296", .data = &max9x_chips[MAX9296] },
 	{ .compatible = "max9x,max96724", .data = &max9x_chips[MAX96724] },
 	{ .compatible = "max9x,max9295", .data = &max9x_chips[MAX9295] },
+	{ .compatible = "max9x,max9295d", .data = &max9x_chips[MAX9295d] },
 	{ .compatible = "max9x,max96717", .data = &max9x_chips[MAX96717] },
 	{}
 };
@@ -140,6 +148,7 @@ static const struct i2c_device_id max9x_id[] = {
 	{ "max9296", MAX9296 },
 	{ "max96724", MAX96724 },
 	{ "max9295", MAX9295 },
+	{ "max9295", MAX9295d },
 	{ "max96717", MAX96717 },
 	{ }
 };
@@ -1904,7 +1913,42 @@ static int max9x_registered(struct v4l2_subdev *sd)
 						}
 					}
 
+					// HACK: Just make ar0234 work
+					if (!strcmp(subdev_pdata->board_info.type, "ar0234")) {
+						// ZED-X-ONE-GS set GPIO0 push-pull and select pull-down
+						dev_dbg(dev, "serializer GPIO0 pull-down %s sensor RESET_BAR signal toggled (%s)...",
+							subdev_pdata->board_info.type,
+							dev_id);
+						regmap_write(common->map, 0x2BF, 0x60);
+						regmap_write(common->map, 0x2BE, 0x80);
+						usleep_range(10000, 10000);
+						regmap_write(common->map, 0x2BE, 0x90);
+						//Needs to sleep for quite a while before register writes
+						usleep_range(200 * 1000, 200 * 1000 + 500);
+
+						// ZED-X set GPIO7/8 push-pull and select pull-down
+						dev_dbg(dev, "serializer GPIO7/8 pull-down %s sensor RESET_BAR signal toggled (%s)...",
+							subdev_pdata->board_info.type,
+							dev_id);
+						regmap_write(common->map, 0x2D4, 0x60);
+						regmap_write(common->map, 0x2D3, 0x80);
+						usleep_range(10000, 10000);
+						regmap_write(common->map, 0x2D3, 0x90);
+						regmap_write(common->map, 0x2D7, 0x60);
+						regmap_write(common->map, 0x2D6, 0x80);
+						usleep_range(10000, 10000);
+						regmap_write(common->map, 0x2D6, 0x90);
+						//Needs to sleep for quite a while before register writes
+						usleep_range(200 * 1000, 200 * 1000 + 500);
+					}
+
 					gpiod_add_lookup_table(sensor_gpios);
+
+					dev_dbg(dev, "%s: register GMSL %c v4l2 i2c %s : 0x%x (flags=0x%x)...", __func__,
+						'A' + link_id,
+						subdev_pdata->board_info.type,
+						subdev_pdata->board_info.addr,
+						subdev_pdata->board_info.flags);
 
 					struct v4l2_subdev *subdev =
 						v4l2_i2c_new_subdev_board(sd->v4l2_dev,
