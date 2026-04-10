@@ -28,6 +28,7 @@
 enum max9295_dev_id {
 	MAX9295A = 0x91,
 	MAX9295B = 0x93,
+	MAX9295D = 0x95,
 	MAX9295E = 0x9B
 };
 
@@ -48,12 +49,14 @@ enum max9295_gpio_pull_updn_sel {
 #define MAX9295_NUM_MIPI_MAPS 16
 #define MAX9295_NUM_CSI_LINKS 2 // Only 1 port, but it is technically Port B
 #define MAX9295_NUM_GPIO 11
+#define MAX9295D_NUM_GPIO 17
 #define MAX9295_NUM_DATA_TYPES 4
 
 #define MAX9295_REG0 (0x0)
 #define MAX9295_REG0_DEV_ADDR_FIELD GENMASK(7, 1)
 
 #define MAX9295_PHY_REM_CTRL (0x1)
+#define MAX9295_PHY_REM2_CTRL (0x3)
 #define MAX9295_PHY_REM_CTRL_DIS_FIELD BIT(4)
 #define MAX9295_PHY_LOCAL_CTRL_DIS_FIELD BIT(5)
 
@@ -108,7 +111,8 @@ enum max9295_gpio_pull_updn_sel {
 #define MAX9295_FRONTTOP_11_DBL10_FIELD(pipe_id) BIT(pipe_id)
 #define MAX9295_FRONTTOP_11_DBL12_FIELD(pipe_id) BIT((pipe_id) + 4)
 
-#define MAX9295_MEM_DT_SEL(pipe_id, dt_slot) (0x314 + (dt_slot) / 2 * 0xC2 + 2 * (pipe_id) + (dt_slot))
+// #define MAX9295_MEM_DT_SEL(pipe_id, dt_slot) (0x314 + (dt_slot) / 2 * 0xC2 + 2 * (pipe_id) + (dt_slot))
+#define MAX9295_MEM_DT_SEL(p, x) (0x314 + (p) * 0x2 + (x))
 #define MAX9295_MEM_DT_SEL_DT_FIELD GENMASK(5, 0)
 #define MAX9295_MEM_DT_SEL_EN_FIELD BIT(6)
 
