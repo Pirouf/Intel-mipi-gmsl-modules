@@ -45,6 +45,12 @@ static const char *const max9295_gpio_chip_names[] = {
 	"MFP8",
 	"MFP9",
 	"MFP10",
+	"MFP11",
+	"MFP12",
+	"MFP13",
+	"MFP14",
+	"MFP15",
+	"MFP16",
 };
 
 /* Declarations */
@@ -138,24 +144,43 @@ static int max9295_gpio_direction_input(struct gpio_chip *chip, unsigned int off
 			MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 1U));
 }
 
+
 static int max9295_gpio_direction_output(struct gpio_chip *chip, unsigned int offset, int value)
 {
 	struct max9x_common *common = from_gpio_chip(chip);
+	struct device *dev = common->dev;
 	struct regmap *map = common->map;
+	struct max9x_desc *desc = common->des;
 	unsigned int mask = 0;
-	unsigned int val;
-
+	unsigned int val, val2;
+	int ret = 0;
 	mask = MAX9295_GPIO_A_OUT_DIS_FIELD | MAX9295_GPIO_A_OUT_FIELD |
-	       MAX9295_GPIO_A_RX_EN_FIELD;
+	       MAX9295_GPIO_A_RX_EN_FIELD | MAX9295_GPIO_A_IN_FIELD | MAX9295_GPIO_A_RES_CFG_FIELD;
 
+	val = MAX9X_FIELD_PREP(MAX9295_GPIO_A_RES_CFG_FIELD, 0U);
 	// Enable the GPIO as an output
-	val = MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 0U);
+	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_DIS_FIELD, 0U);
 	// Write out the initial value to the GPIO
 	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U));
 	// Disable remote control over SerDes link
 	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_RX_EN_FIELD, 0U);
+	val |= MAX9X_FIELD_PREP(MAX9295_GPIO_A_IN_FIELD, 1U);
 
-	return regmap_update_bits(map, MAX9295_GPIO_A(offset), mask, val);
+	regmap_read(map, MAX9295_GPIO_A(offset), &val2);
+	dev_dbg(dev, "value of 0x%02x before update_bits val=0x%02x\n",
+		MAX9295_GPIO_A(offset), val2);
+
+	ret = regmap_update_bits(map, MAX9295_GPIO_A(offset),
+				 mask,
+				 val);
+
+	if (desc->dev_id != MAX9295D)
+		return ret;
+
+	ret = regmap_update_bits(map, MAX9295_GPIO_B(offset),
+				 MAX9295_GPIO_B_OUT_TYPE_FIELD,
+				 MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
+	return ret;
 }
 
 static int max9295_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -175,20 +200,42 @@ static void max9295_gpio_set(struct gpio_chip *chip, unsigned int offset, int va
 {
 	struct max9x_common *common = from_gpio_chip(chip);
 	struct regmap *map = common->map;
+	struct max9x_desc *desc = common->des;
 
 	regmap_update_bits(map, MAX9295_GPIO_A(offset),
 		MAX9295_GPIO_A_OUT_FIELD,
-		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U)));
+		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 1 ? 0U : 1U)));
+
+	if (desc->dev_id != MAX9295D)
+		return;
+
+	regmap_update_bits(map, MAX9295_GPIO_B(offset),
+			   MAX9295_GPIO_B_OUT_TYPE_FIELD,
+			   MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
+);
+
 }
 #else
 static int max9295_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
 {
 	struct max9x_common *common = from_gpio_chip(chip);
 	struct regmap *map = common->map;
+	struct max9x_desc *desc = common->des;
+	int ret;
 
-	return regmap_update_bits(map, MAX9295_GPIO_A(offset),
+	ret = regmap_update_bits(map, MAX9295_GPIO_A(offset),
 		MAX9295_GPIO_A_OUT_FIELD,
 		MAX9X_FIELD_PREP(MAX9295_GPIO_A_OUT_FIELD, (value == 0 ? 0U : 1U)));
+
+
+	if (desc->dev_id != MAX9295D)
+		return ret;
+
+	ret = regmap_update_bits(map, MAX9295_GPIO_B(offset),
+				 MAX9295_GPIO_B_OUT_TYPE_FIELD,
+				 MAX9X_FIELD_PREP(MAX9295_GPIO_B_OUT_TYPE_FIELD, 1U));
+
+	return ret;
 }
 #endif
 
@@ -196,6 +243,7 @@ static int max9295_gpio_set_config(struct gpio_chip *chip, unsigned int offset, 
 {
 	struct max9x_common *common = from_gpio_chip(chip);
 	struct regmap *map = common->map;
+	struct max9x_desc *desc = common->des;
 	unsigned int out_type_mask = MAX9295_GPIO_B_OUT_TYPE_FIELD;
 	unsigned int out_type_val;
 
@@ -215,6 +263,7 @@ static int max9295_setup_gpio(struct max9x_common *common)
 	struct device *dev = common->dev;
 	int ret;
 	struct max9x_gpio_pdata *gpio_pdata = NULL;
+	struct max9x_desc *desc = common->des;
 
 	if (dev->platform_data) {
 		struct max9x_pdata *pdata = dev->platform_data;
@@ -237,7 +286,8 @@ static int max9295_setup_gpio(struct max9x_common *common)
 	common->gpio_chip.get = max9295_gpio_get;
 	common->gpio_chip.set = max9295_gpio_set;
 	common->gpio_chip.set_config = max9295_gpio_set_config;
-	common->gpio_chip.ngpio = MAX9295_NUM_GPIO;
+	common->gpio_chip.ngpio = desc->dev_id == MAX9295D ?
+					MAX9295D_NUM_GPIO : MAX9295_NUM_GPIO;
 	common->gpio_chip.can_sleep = 1;
 	common->gpio_chip.base = -1;
 	if (gpio_pdata && gpio_pdata->names)
@@ -259,8 +309,9 @@ static int max9295_set_pipe_csi_enabled(struct max9x_common *common,
 {
 	struct device *dev = common->dev;
 	struct regmap *map = common->map;
+	struct max9x_desc *desc = common->des;
 	int ret;
-
+	int val;
 	dev_dbg(dev, "Video-pipe %d, csi %d: %s, %d lanes", pipe_id, csi_id,
 		(enable ? "enable" : "disable"), common->csi_link[csi_id].config.num_lanes);
 
@@ -304,7 +355,7 @@ static int max9295_set_pipe_data_types_enabled(struct max9x_common *common,
 
 	for (data_type_slot = 0; data_type_slot < common->video_pipe[pipe_id].config.num_data_types; data_type_slot++) {
 		dt = common->video_pipe[pipe_id].config.data_type[data_type_slot];
-		dev_dbg(dev, "Video-pipe %d, data type %d: (%#.2x: %s)",
+		dev_dbg(dev, "%s Video-pipe %d, data type %d: (%#.2x: %s)", __func__,
 			pipe_id, data_type_slot, dt, (enable ? "enable" : "disable"));
 
 		TRY(ret, regmap_update_bits_retry(map, MAX9295_MEM_DT_SEL(pipe_id, data_type_slot),
@@ -340,6 +391,7 @@ static int max9295_set_video_pipe_double_loading(struct max9x_common *common,
 	unsigned int fields;
 	int ret;
 
+	dev_dbg(dev, "Configuring double loading mode for pipe %u, bpp=%u", pipe_id, bpp);
 	if (pipe_id >= MAX9295_NUM_VIDEO_PIPES)
 		return -EINVAL;
 
@@ -492,6 +544,7 @@ static int max9295_enable_serial_link(struct max9x_common *common, unsigned int 
 		if (common->video_pipe[pipe_id].enabled == false)
 			continue;
 
+		printk("max9295_enable_serial_link: pipe_id=%d\n", pipe_id);
 		config = &common->video_pipe[pipe_id].config;
 
 		TRY(ret, max9295_set_pipe_data_types_enabled(common, pipe_id, true));
@@ -626,6 +679,10 @@ static int max9295_verify_devid(struct max9x_common *common)
 		dev_info(dev, "Detected MAX9295B revision %ld",
 			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
 		break;
+	case MAX9295D:
+		dev_info(dev, "Detected MAX9295D revision %ld",
+			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
+		break;
 	case MAX9295E:
 		dev_info(dev, "Detected MAX9295E revision %ld",
 			 FIELD_GET(MAX9295_DEV_REV_FIELD, dev_rev));
@@ -758,10 +815,10 @@ static int max9295_add_translate_addr(struct max9x_common *common,
 		TRY(ret, regmap_read_retry(map, MAX9295_I2C_SRC(i2c_id, alias), &src));
 
 		src = FIELD_GET(MAX9295_I2C_SRC_FIELD, src);
-		if (src == virt_addr || src == 0) {
-			dev_dbg(dev, "SRC %02x = %02x, DST %02x = %02x",
+		dev_dbg(dev, "SRC %02x = %02x, DST %02x = %02x",
 				MAX9295_I2C_SRC(i2c_id, alias), virt_addr,
 				MAX9295_I2C_DST(i2c_id, alias), phys_addr);
+		if (src == virt_addr || src == 0) {
 			TRY(ret, regmap_write_retry(map, MAX9295_I2C_DST(i2c_id, alias),
 					      MAX9X_FIELD_PREP(MAX9295_I2C_DST_FIELD, phys_addr))
 			);
