@@ -138,6 +138,7 @@ enum max9x_chip_type {
 	MAX96717,
 	MAX96724F,
 	MAX96724R,
+	MAX9295d,
 };
 
 enum max9x_serdes_type {

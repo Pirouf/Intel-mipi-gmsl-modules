@@ -21,6 +21,7 @@ struct max9x_subdev_pdata {
 	unsigned short phys_addr; // Remap or translate subdev
 
 	struct gpiod_lookup *gpio; // SER only
+	unsigned int num_subdevs;
 };
 
 struct max9x_serial_link_pdata {
