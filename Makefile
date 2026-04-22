@@ -52,7 +52,7 @@ export CONFIG_VIDEO_INTEL_IPU7=m
 export CONFIG_VIDEO_INTEL_IPU6=m
 export CONFIG_VIDEO_INTEL_IPU6_ISYS_RESET=y
 
-subdir-ccflags-y += -DCONFIG_VIDEO_INTEL_IPU7
+subdir-ccflags-y += -DCONFIG_VIDEO_INTEL_IPU7 -DENABLE_FW_OFFLINE_LOGGER
 subdir-ccflags-y += -DCONFIG_VIDEO_INTEL_IPU6
 
 # Build IPU7 drivers from submodule
