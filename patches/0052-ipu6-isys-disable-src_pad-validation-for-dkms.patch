@@ -1,15 +1,18 @@
-Subject: [PATCH] ipu6: isys: disable src_pad validation for dkms
+From f5f8e9ca3695645166c5eebe434cd5162079194d Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 28 Apr 2026 08:26:40 -0700
+Subject: [PATCH 52/57] ipu6: isys: disable src_pad validation for dkms
 
 src_pad field is added by VTG to support UXC use case in BKC kernel.
 Hence, this patch is only applicable to BKC kernel header file.
 
-Signed-off-by: Khai Wen, Ng <khai.wen.ng@intel.com>
+Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
- .../drivers/media/pci/intel/ipu6/ipu6-isys.c  | 6 +++---
+ ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
-index 415ff067e..f4bc8ca12 100644
+index eb66918..241bdeb 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
 @@ -175,7 +175,7 @@ isys_complete_ext_device_registration(struct ipu6_isys *isys,
@@ -40,4 +43,5 @@ index 415ff067e..f4bc8ca12 100644
  	if (ret)
  		return ret;
 -- 
-2.43.0
+2.25.1
+

@@ -1,10 +1,18 @@
- 6.12.0/drivers/media/pci/intel/ipu-bridge.c | 102 ++++++++++++++++++++++++----
- 1 file changed, 89 insertions(+), 13 deletions(-)
+From 1aa28e272a8161282a486be8c280a8f804f1a70f Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 28 Apr 2026 05:58:38 -0700
+Subject: [PATCH 202/212] ipu-bridge : 6.12 bkc backport
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ 6.12.0/drivers/media/pci/intel/ipu-bridge.c | 100 +++++++++++++++++---
+ 1 file changed, 87 insertions(+), 13 deletions(-)
+
 diff --git a/6.12.0/drivers/media/pci/intel/ipu-bridge.c b/6.12.0/drivers/media/pci/intel/ipu-bridge.c
-index a0e9a71..4e4f86a 100644
+index 4e921c7..4e4f86a 100644
 --- a/6.12.0/drivers/media/pci/intel/ipu-bridge.c
 +++ b/6.12.0/drivers/media/pci/intel/ipu-bridge.c
-@@ -83,6 +85,17 @@ static const struct ipu_sensor_config ipu_supported_sensors[] = {
+@@ -85,6 +85,17 @@ static const struct ipu_sensor_config ipu_supported_sensors[] = {
  	IPU_SENSOR_CONFIG("OVTI2680", 1, 331200000),
  	/* Omnivision OV8856 */
  	IPU_SENSOR_CONFIG("OVTI8856", 3, 180000000, 360000000, 720000000),
@@ -22,7 +30,7 @@ index a0e9a71..4e4f86a 100644
  };
  
  static const struct ipu_property_names prop_names = {
-@@ -313,6 +326,7 @@ int ipu_bridge_parse_ssdb(struct acpi_device *adev, struct ipu_sensor *sensor)
+@@ -315,6 +326,7 @@ int ipu_bridge_parse_ssdb(struct acpi_device *adev, struct ipu_sensor *sensor)
  	}
  
  	sensor->link = ssdb.link;
@@ -30,7 +38,7 @@ index a0e9a71..4e4f86a 100644
  	sensor->lanes = ssdb.lanes;
  	sensor->mclkspeed = ssdb.mclkspeed;
  	sensor->rotation = ipu_bridge_parse_rotation(adev, &ssdb);
-@@ -472,18 +486,49 @@ static void ipu_bridge_init_swnode_group(struct ipu_sensor *sensor)
+@@ -474,18 +486,49 @@ static void ipu_bridge_init_swnode_group(struct ipu_sensor *sensor)
  	}
  }
  
@@ -85,7 +93,7 @@ index a0e9a71..4e4f86a 100644
  	nodes[SWNODE_SENSOR_ENDPOINT] = NODE_ENDPOINT(
  						sensor->node_names.endpoint,
  						&nodes[SWNODE_SENSOR_PORT],
-@@ -664,7 +709,7 @@ static void ipu_bridge_unregister_sensors(struct ipu_bridge *bridge)
+@@ -666,7 +709,7 @@ static void ipu_bridge_unregister_sensors(struct ipu_bridge *bridge)
  }
  
  static int ipu_bridge_connect_sensor(const struct ipu_sensor_config *cfg,
@@ -94,7 +102,7 @@ index a0e9a71..4e4f86a 100644
  {
  	struct fwnode_handle *fwnode, *primary;
  	struct ipu_sensor *sensor;
-@@ -691,31 +736,53 @@ static int ipu_bridge_connect_sensor(const struct ipu_sensor_config *cfg,
+@@ -693,31 +736,53 @@ static int ipu_bridge_connect_sensor(const struct ipu_sensor_config *cfg,
  		if (ret)
  			goto err_put_adev;
  
@@ -154,7 +162,7 @@ index a0e9a71..4e4f86a 100644
  
  		ret = ipu_bridge_instantiate_ivsc(sensor);
  		if (ret)
-@@ -748,7 +815,16 @@ static int ipu_bridge_connect_sensors(struct ipu_bridge *bridge)
+@@ -750,7 +815,16 @@ static int ipu_bridge_connect_sensors(struct ipu_bridge *bridge)
  		const struct ipu_sensor_config *cfg =
  			&ipu_supported_sensors[i];
  
@@ -172,3 +180,6 @@ index a0e9a71..4e4f86a 100644
  		if (ret)
  			goto err_unregister_sensors;
  	}
+-- 
+2.25.1
+

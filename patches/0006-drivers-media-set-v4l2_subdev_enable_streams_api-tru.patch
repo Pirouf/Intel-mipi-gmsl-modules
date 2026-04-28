@@ -1,7 +1,7 @@
-From 33750bc14545f84d7c26168b956e960b6427b005 Mon Sep 17 00:00:00 2001
+From 7d6515b8b045280828adc87d3fd7be86f79425b5 Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Mon, 17 Nov 2025 07:45:23 -0700
-Subject: [PATCH 5/8] drivers: media: set v4l2_subdev_enable_streams_api=true
+Subject: [PATCH 06/13] drivers: media: set v4l2_subdev_enable_streams_api=true
  for WA 6.17
 
 Signed-off-by: hepengpx <pengpengx.he@intel.com>
@@ -24,5 +24,5 @@ index 4fd25fe..60a0556 100644
  
  /*
 -- 
-2.43.0
+2.25.1
 

@@ -1,46 +1,34 @@
-From e82bcd12246eed133513993db7422afb9cce6a7d Mon Sep 17 00:00:00 2001
-From: Peter Zijlstra <peterz@infradead.org>
-Date: Mon, 19 Jan 2026 11:41:13 -0700
-Subject: [PATCH 52/52] module: Add version conditional for symbol namespace
+From 26c29a1e7f35cd8c735b68a6b48e96a0b856fd4a Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 28 Apr 2026 05:31:44 -0700
+Subject: [PATCH 54/57] module: Add version conditional for symbol namespace
  syntax
 
 Handle the namespace syntax change between kernel 6.12 and 6.17.
 In 6.17+, EXPORT_SYMBOL_NS_GPL requires quoted namespace strings.
 
+Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
- .../media/pci/intel/ipu6/ipu6-buttress.c      | 70 ++++++++++++++++---
- .../drivers/media/pci/intel/ipu6/ipu6-cpd.c   | 12 +++-
- .../drivers/media/pci/intel/ipu6/ipu6-dma.c   | 54 ++++++++++++---
- .../media/pci/intel/ipu6/ipu6-fw-com.c        | 55 ++++++++++++---
- .../drivers/media/pci/intel/ipu6/ipu6-isys.c  |  6 +-
- .../drivers/media/pci/intel/ipu6/ipu6-mmu.c   | 12 +++-
- .../drivers/media/pci/intel/ipu6/ipu6.c       |  8 ++-
+ .../media/pci/intel/ipu6/ipu6-buttress.c      | 28 ++++++++++++++
+ .../drivers/media/pci/intel/ipu6/ipu6-cpd.c   |  8 ++++
+ .../drivers/media/pci/intel/ipu6/ipu6-dma.c   | 36 ++++++++++++++++++
+ .../media/pci/intel/ipu6/ipu6-fw-com.c        | 37 +++++++++++++++++++
+ .../drivers/media/pci/intel/ipu6/ipu6-isys.c  |  5 +++
+ .../drivers/media/pci/intel/ipu6/ipu6-mmu.c   |  8 ++++
+ .../drivers/media/pci/intel/ipu6/ipu6.c       |  8 ++++
  .../drivers/media/pci/intel/ipu6/ipu6.h       |  1 +
- 8 files changed, 180 insertions(+), 38 deletions(-)
+ 8 files changed, 131 insertions(+)
 
-diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
-index a1b2e3c..b2c3d4e 100644
---- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
-+++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
-@@ -7,6 +7,7 @@
- #include <linux/list.h>
- #include <linux/pci.h>
- #include <linux/types.h>
-+#include <linux/version.h>
- 
- #include "ipu6-buttress.h"
- 
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-buttress.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-buttress.c
-index fc18cc6..dc5dbe5 100644
+index fc18cc6..2b89dd9 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-buttress.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-buttress.c
 @@ -508,7 +508,11 @@ bool ipu6_buttress_auth_done(struct ipu6_device *isp)
  
  	return val == BUTTRESS_SECURITY_CTL_AUTH_DONE;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_auth_done, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_auth_done, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_auth_done, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_auth_done, "INTEL_IPU6");
 +#endif
@@ -51,9 +39,8 @@ index fc18cc6..dc5dbe5 100644
  
  	return ret;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_map_fw_image, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_map_fw_image, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_map_fw_image, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_map_fw_image, "INTEL_IPU6");
 +#endif
@@ -64,9 +51,8 @@ index fc18cc6..dc5dbe5 100644
  	dma_unmap_sgtable(&pdev->dev, sgt, DMA_TO_DEVICE, 0);
  	sg_free_table(sgt);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_unmap_fw_image, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_unmap_fw_image, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_unmap_fw_image, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_unmap_fw_image, "INTEL_IPU6");
 +#endif
@@ -77,9 +63,8 @@ index fc18cc6..dc5dbe5 100644
  
  	return -ETIMEDOUT;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_start_tsc_sync, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_start_tsc_sync, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_start_tsc_sync, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_start_tsc_sync, "INTEL_IPU6");
 +#endif
@@ -90,9 +75,8 @@ index fc18cc6..dc5dbe5 100644
  	WARN_ON_ONCE(1);
  	return -1;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_get_i2c_bus_id, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_get_i2c_bus_id, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_get_i2c_bus_id, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_get_i2c_bus_id, "INTEL_IPU6");
 +#endif
@@ -103,9 +87,8 @@ index fc18cc6..dc5dbe5 100644
  	}
  	local_irq_restore(flags);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_read, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_read, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_read, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_read, "INTEL_IPU6");
 +#endif
@@ -116,9 +99,8 @@ index fc18cc6..dc5dbe5 100644
  	 */
  	return div_u64(ns, isp->buttress.ref_clk);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_ticks_to_ns, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_ticks_to_ns, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_ticks_to_ns, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_buttress_tsc_ticks_to_ns, "INTEL_IPU6");
 +#endif
@@ -126,16 +108,15 @@ index fc18cc6..dc5dbe5 100644
  void ipu6_buttress_restore(struct ipu6_device *isp)
  {
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-cpd.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-cpd.c
-index 21c1c12..fd81dc2 100644
+index 21c1c12..ef5ea74 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-cpd.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-cpd.c
 @@ -216,14 +216,22 @@ int ipu6_cpd_create_pkg_dir(struct ipu6_bus_device *adev, const void *src)
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_cpd_create_pkg_dir, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_cpd_create_pkg_dir, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_cpd_create_pkg_dir, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_cpd_create_pkg_dir, "INTEL_IPU6");
 +#endif
@@ -145,9 +126,8 @@ index 21c1c12..fd81dc2 100644
  	ipu6_dma_free(adev, adev->pkg_dir_size, adev->pkg_dir,
  		      adev->pkg_dir_dma_addr, 0);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_cpd_free_pkg_dir, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_cpd_free_pkg_dir, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_cpd_free_pkg_dir, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_cpd_free_pkg_dir, "INTEL_IPU6");
 +#endif
@@ -155,16 +135,15 @@ index 21c1c12..fd81dc2 100644
  static int ipu6_cpd_validate_cpd(struct ipu6_device *isp, const void *cpd,
  				 unsigned long cpd_size,
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-dma.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-dma.c
-index b71f66b..aa3e1f7 100644
+index b71f66b..8c8575b 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-dma.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-dma.c
 @@ -130,7 +130,11 @@ void ipu6_dma_sync_single(struct ipu6_bus_device *sys, dma_addr_t dma_handle,
  	vaddr = info->vaddr + offset;
  	clflush_cache_range(vaddr, size);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_single, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_single, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_single, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_single, "INTEL_IPU6");
 +#endif
@@ -175,9 +154,8 @@ index b71f66b..aa3e1f7 100644
  	for_each_sg(sglist, sg, nents, i)
  		clflush_cache_range(page_to_virt(sg_page(sg)), sg->length);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sg, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sg, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sg, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sg, "INTEL_IPU6");
 +#endif
@@ -186,9 +164,8 @@ index b71f66b..aa3e1f7 100644
  {
  	ipu6_dma_sync_sg(sys, sgt->sgl, sgt->orig_nents);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sgtable, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sgtable, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sgtable, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_sync_sgtable, "INTEL_IPU6");
 +#endif
@@ -199,9 +176,8 @@ index b71f66b..aa3e1f7 100644
  
  	return NULL;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_alloc, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_alloc, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_alloc, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_alloc, "INTEL_IPU6");
 +#endif
@@ -212,9 +188,8 @@ index b71f66b..aa3e1f7 100644
  
  	kfree(info);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_free, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_free, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_free, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_free, "INTEL_IPU6");
 +#endif
@@ -225,9 +200,8 @@ index b71f66b..aa3e1f7 100644
  	mmu->tlb_invalidate(mmu);
  	__free_iova(&mmu->dmap->iovad, iova);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sg, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sg, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sg, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sg, "INTEL_IPU6");
 +#endif
@@ -238,9 +212,8 @@ index b71f66b..aa3e1f7 100644
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sg, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sg, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sg, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sg, "INTEL_IPU6");
 +#endif
@@ -251,9 +224,8 @@ index b71f66b..aa3e1f7 100644
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sgtable, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sgtable, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sgtable, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_map_sgtable, "INTEL_IPU6");
 +#endif
@@ -263,9 +235,8 @@ index b71f66b..aa3e1f7 100644
  {
  	ipu6_dma_unmap_sg(sys, sgt->sgl, sgt->nents, dir, attrs);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sgtable, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sgtable, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sgtable, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_dma_unmap_sgtable, "INTEL_IPU6");
 +#endif
@@ -273,7 +244,7 @@ index b71f66b..aa3e1f7 100644
  /*
   * Create scatter-list for the already allocated DMA buffer
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-fw-com.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-fw-com.c
-index 45738f3..7a9fcd9 100644
+index 45738f3..947b281 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-fw-com.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-fw-com.c
 @@ -10,6 +10,7 @@
@@ -288,9 +259,8 @@ index 45738f3..7a9fcd9 100644
  
  	return ctx;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_prepare, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_prepare, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_prepare, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_prepare, "INTEL_IPU6");
 +#endif
@@ -301,9 +271,8 @@ index 45738f3..7a9fcd9 100644
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_open, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_open, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_open, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_open, "INTEL_IPU6");
 +#endif
@@ -314,9 +283,8 @@ index 45738f3..7a9fcd9 100644
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_close, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_close, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_close, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_close, "INTEL_IPU6");
 +#endif
@@ -327,9 +295,8 @@ index 45738f3..7a9fcd9 100644
  	kfree(ctx);
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_release, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_release, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_release, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_release, "INTEL_IPU6");
 +#endif
@@ -340,9 +307,8 @@ index 45738f3..7a9fcd9 100644
  
  	return state == SYSCOM_STATE_READY;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_ready, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_ready, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_ready, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_fw_com_ready, "INTEL_IPU6");
 +#endif
@@ -353,9 +319,8 @@ index 45738f3..7a9fcd9 100644
  
  	return (void *)(q->host_address + index * q->token_size);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_send_get_token, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_send_get_token, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_send_get_token, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_send_get_token, "INTEL_IPU6");
 +#endif
@@ -366,9 +331,8 @@ index 45738f3..7a9fcd9 100644
  
  	writel(wr, q_dmem + FW_COM_WR_REG);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_send_put_token, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_send_put_token, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_send_put_token, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_send_put_token, "INTEL_IPU6");
 +#endif
@@ -379,9 +343,8 @@ index 45738f3..7a9fcd9 100644
  
  	return (void *)(q->host_address + rd * q->token_size);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_recv_get_token, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_recv_get_token, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_recv_get_token, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_recv_get_token, "INTEL_IPU6");
 +#endif
@@ -392,18 +355,16 @@ index 45738f3..7a9fcd9 100644
  
  	writel(rd, q_dmem + FW_COM_RD_REG);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_recv_put_token, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_recv_put_token, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_recv_put_token, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_recv_put_token, "INTEL_IPU6");
 +#endif
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
-index 412afd0..79780d3 100644
+index d0db7ea..526c916 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys.c
-@@ -1773,6 +1773,11 @@ MODULE_AUTHOR("Bingbu Cao <bingbu.cao@intel.com>");
- MODULE_AUTHOR("Yunliang Ding <yunliang.ding@intel.com>");
+@@ -1784,6 +1784,11 @@ MODULE_AUTHOR("Yunliang Ding <yunliang.ding@intel.com>");
  MODULE_AUTHOR("Hongju Wang <hongju.wang@intel.com>");
  MODULE_LICENSE("GPL");
  MODULE_DESCRIPTION("Intel IPU6 input system driver");
@@ -414,17 +375,17 @@ index 412afd0..79780d3 100644
 +MODULE_IMPORT_NS("INTEL_IPU6");
 +MODULE_IMPORT_NS("INTEL_IPU_BRIDGE");
 +#endif
+ MODULE_VERSION(DRIVER_VERSION_SUFFIX);
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-mmu.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-mmu.c
-index 57298ac..dc4b4e0 100644
+index 57298ac..ea73dd5 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-mmu.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-mmu.c
 @@ -518,7 +518,11 @@ int ipu6_mmu_hw_init(struct ipu6_mmu *mmu)
  
  	return 0;
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_init, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_init, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_init, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_init, "INTEL_IPU6");
 +#endif
@@ -435,9 +396,8 @@ index 57298ac..dc4b4e0 100644
  	mmu->ready = false;
  	spin_unlock_irqrestore(&mmu->ready_lock, flags);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_cleanup, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_cleanup, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_cleanup, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_mmu_hw_cleanup, "INTEL_IPU6");
 +#endif
@@ -445,16 +405,15 @@ index 57298ac..dc4b4e0 100644
  static struct ipu6_dma_mapping *alloc_dma_mapping(struct ipu6_device *isp)
  {
 diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.c
-index 67894a3..6341775 100644
+index 67894a3..42646bc 100644
 --- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.c
 +++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.c
 @@ -302,7 +302,11 @@ void ipu6_configure_spc(struct ipu6_device *isp,
  		ipu6_pkg_dir_configure_spc(isp, hw_variant, pkg_dir_idx, base,
  					   pkg_dir, pkg_dir_dma_addr);
  }
--EXPORT_SYMBOL_NS_GPL(ipu6_configure_spc, INTEL_IPU6);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+EXPORT_SYMBOL_NS_GPL(ipu6_configure_spc, INTEL_IPU6);
+ EXPORT_SYMBOL_NS_GPL(ipu6_configure_spc, INTEL_IPU6);
 +#else
 +EXPORT_SYMBOL_NS_GPL(ipu6_configure_spc, "INTEL_IPU6");
 +#endif
@@ -465,14 +424,26 @@ index 67894a3..6341775 100644
  
  module_pci_driver(ipu6_pci_driver);
  
--MODULE_IMPORT_NS(INTEL_IPU_BRIDGE);
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-+MODULE_IMPORT_NS(INTEL_IPU_BRIDGE);
+ MODULE_IMPORT_NS(INTEL_IPU_BRIDGE);
 +#else
 +MODULE_IMPORT_NS("INTEL_IPU_BRIDGE");
 +#endif
  MODULE_AUTHOR("Sakari Ailus <sakari.ailus@linux.intel.com>");
  MODULE_AUTHOR("Tianshu Qiu <tian.shu.qiu@intel.com>");
  MODULE_AUTHOR("Bingbu Cao <bingbu.cao@intel.com>");
+diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
+index baad7f8..b76ab9d 100644
+--- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
++++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6.h
+@@ -7,6 +7,7 @@
+ #include <linux/list.h>
+ #include <linux/pci.h>
+ #include <linux/types.h>
++#include <linux/version.h>
+ 
+ #include "ipu6-buttress.h"
+ 
 -- 
-2.43.0
+2.25.1
+

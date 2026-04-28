@@ -1,7 +1,7 @@
-From 9097a7b8bcb983c7afc812af26eb7d313200f849 Mon Sep 17 00:00:00 2001
+From c23ae9d6a748cf8a44d2a22b16aa09fb1a800a77 Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Mon, 17 Nov 2025 07:44:33 -0700
-Subject: [PATCH 4/8] dkms : v4l2-core makefile adaptation 6.17
+Subject: [PATCH 04/13] dkms : v4l2-core makefile adaptation 6.17
 
 Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
@@ -10,7 +10,7 @@ Signed-off-by: florent pirou <florent.pirou@intel.com>
  2 files changed, 4 insertions(+)
 
 diff --git a/6.17.0/drivers/media/v4l2-core/Makefile b/6.17.0/drivers/media/v4l2-core/Makefile
-index 2177b9d..82c235f 100644
+index 2177b9d..fc41f58 100644
 --- a/6.17.0/drivers/media/v4l2-core/Makefile
 +++ b/6.17.0/drivers/media/v4l2-core/Makefile
 @@ -2,6 +2,9 @@
@@ -33,5 +33,5 @@ index c369235..1997370 100644
  MODULE_ALIAS_CHARDEV_MAJOR(VIDEO_MAJOR);
 +MODULE_VERSION(DRIVER_VERSION_SUFFIX);
 -- 
-2.43.0
+2.25.1
 

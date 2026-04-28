@@ -1,3 +1,13 @@
+From ff6bbad886d1d48d96162382bfed79074b5d57e3 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Tue, 28 Apr 2026 07:52:11 -0700
+Subject: [PATCH 205/212] ipu-bridge : 6.17 bkc backport
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ 6.17.0/drivers/media/pci/intel/ipu-bridge.c | 25 ++++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
 diff --git a/6.17.0/drivers/media/pci/intel/ipu-bridge.c b/6.17.0/drivers/media/pci/intel/ipu-bridge.c
 index 4e57935..3c947d1 100644
 --- a/6.17.0/drivers/media/pci/intel/ipu-bridge.c
@@ -71,3 +81,6 @@ index 4e57935..3c947d1 100644
  }
  
  static void ipu_bridge_init_swnode_names(struct ipu_sensor *sensor)
+-- 
+2.25.1
+
