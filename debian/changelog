@@ -1,5 +1,11 @@
 intel-mipi-gmsl-drivers (20260421-1) UNRELEASED; urgency=low
 
+  * acpi-ipu : add stereolabs compatible sl_zedx, sl_max9295, sl_max9296 and sl_max96724 PDATA
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Wed, 29 Apr 2026 20:16:24 +0000
+
+intel-mipi-gmsl-drivers (20260421-1) UNRELEASED; urgency=low
+
   * initial package based of Intel MIPI-CSI Camera Reference drivers [Release 2026 Q1.2](https://github.com/intel/Intel-MIPI-CSI-Camera-Reference-Driver/commit/9ae0a6ace8aeb7d35b7c77fc79c188e620f964e8)
 
  -- ECI Maintainer <eci.maintainer@intel.com>  Wed, 29 Apr 2026 20:16:24 +0000
