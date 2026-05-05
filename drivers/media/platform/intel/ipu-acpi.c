@@ -250,6 +250,7 @@ static const struct ipu_acpi_devices supported_devices[] = {
 #endif
 #endif
 #if IS_ENABLED(CONFIG_VIDEO_D4XX)
+	{ 
 		.hid_name = "INTC10CD",
 		.real_driver = D457_NAME,
 		.get_platform_data = get_sensor_pdata,
