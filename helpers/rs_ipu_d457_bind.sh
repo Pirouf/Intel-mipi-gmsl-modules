@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
     ;;
     -m|--mux)
       shift
-      if [ ${#1} -eq 3 ]; then
+      if [ ${#1} -ge 3 ]; then
 	 mux_param=$1
       fi
       shift
@@ -100,6 +100,9 @@ cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6
 # exit if IPU7/IPU6 ISYS CSI subdev 1-8 srcpads limitation detected
 mdev_capdev_count=$(${v4l2_util} -d ${mdev} -A | wc -l)
 [[ $((${mdev_capdev_count}-2)) -le 48 ]] && exit 0
+
+clean_symlink_cmd="find /dev -type l -name *video-rs* -delete"
+out $clean_symlink_cmd # <- this can be used to clean-up all bindings from librealsense2
 
 media_ctl_cmd="${media_util} -d ${mdev}"
 [[ -n "${mux_param}" ]] && out $media_ctl_cmd -r # <- this can be used to clean-up all bindings from media controller
