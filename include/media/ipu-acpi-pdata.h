@@ -8,6 +8,10 @@
 #include <media/v4l2-mediabus.h>
 #include <media/serdes-pdata.h>
 
+#if IS_ENABLED(CONFIG_VIDEO_D4XX)
+#include <media/i2c/d4xx_pdata.h>
+#endif
+
 #define CL_EMPTY 0
 #define CL_DISCRETE 1
 #define CL_LT 5
