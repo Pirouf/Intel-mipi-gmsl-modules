@@ -33,7 +33,6 @@
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
 #ifdef CONFIG_VIDEO_INTEL_IPU6_BACKWARD_COMPAT
 #include <uapi/linux/ipu-isys.h>
-#include <media/i2c/d4xx_pdata.h>
 #else
 #include <media/serdes-pdata.h>
 #endif
@@ -45,6 +44,7 @@
 #include <media/v4l2-mediabus.h>
 
 #ifdef CONFIG_VIDEO_D4XX_SERDES
+#include <media/i2c/d4xx_pdata.h>
 #include <media/i2c/d4xx-max9295.h>
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 #include <media/i2c/d4xx-max96724.h>
@@ -3763,13 +3763,13 @@ static unsigned short ds5_serdes_csi_output(int c_bus, int c_addr);
 static int ds5_board_setup(struct ds5 *state)
 {
 	struct device *dev = &state->client->dev;
-	struct d4xx_pdata *pdata = dev->platform_data;
+	struct serdes_platform_data *pdata = dev->platform_data;
 	struct i2c_adapter *adapter = state->client->adapter;
 	int bus = adapter->nr;
 	int err = 0;
 	int i;
 	char suffix = pdata->suffix;
-	struct d4xx_subdev_info *spdata = &pdata->subdev_info[0];
+	struct serdes_subdev_info *spdata = &pdata->subdev_info[0];
 	char serdes_suffix[5]; /* suffix string for subdevs */
 
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
@@ -4500,7 +4500,7 @@ static int ds5_sensor_init(struct i2c_client *c, struct ds5 *state,
 	struct media_pad *pad = &sensor->pad;
 	dev_t *dev_num = &state->client->dev.devt;
 #ifndef CONFIG_OF
-	struct d4xx_pdata *dpdata = c->dev.platform_data;
+	struct serdes_platform_data *dpdata = c->dev.platform_data;
 	char suffix = dpdata->suffix;
 #endif
 	v4l2_i2c_subdev_init(sd, c, ops);
@@ -4511,7 +4511,7 @@ static int ds5_sensor_init(struct i2c_client *c, struct ds5 *state,
 	sd->grp_id = *dev_num;
 	v4l2_set_subdevdata(sd, state);
 #ifndef CONFIG_OF
-	struct d4xx_subdev_info *spdata = &dpdata->subdev_info[0];
+	struct serdes_subdev_info *spdata = &dpdata->subdev_info[0];
 	/*
 	 * suffix syntaxe for multiple D457 connected to 1 Deser :
 	 * - IPU7 <a|b|c|d>-<mipi port index>
@@ -5364,7 +5364,7 @@ static int ds5_mux_s_frame_interval(struct v4l2_subdev *sd,
 #ifndef CONFIG_VIDEO_D4XX_SERDES
 static int d4xx_reset_oneshot(struct ds5 *state)
 {
-	struct d4xx_pdata *dpdata = state->client->dev.platform_data;
+	struct serdes_platform_data *dpdata = state->client->dev.platform_data;
 	struct i2c_board_info *deser = dpdata->deser_board_info;
 
 	int s_addr = state->client->addr;
@@ -6148,7 +6148,7 @@ static int ds5_mux_init(struct i2c_client *c, struct ds5 *state)
 	unsigned int i;
 	int ret;
 #ifndef CONFIG_OF
-	struct d4xx_pdata *dpdata = c->dev.platform_data;
+	struct serdes_platform_data *dpdata = c->dev.platform_data;
 	char suffix = dpdata->suffix;
 #endif
 	v4l2_i2c_subdev_init(sd, c, &ds5_mux_subdev_ops);
@@ -6161,7 +6161,7 @@ static int ds5_mux_init(struct i2c_client *c, struct ds5 *state)
 	snprintf(sd->name, sizeof(sd->name), "DS5 mux %d-%04x",
 		 i2c_adapter_id(c->adapter), c->addr);
 #else
-	struct d4xx_subdev_info *spdata = &dpdata->subdev_info[0];
+	struct serdes_subdev_info *spdata = &dpdata->subdev_info[0];
 	/*
 	 * suffix syntaxe for multiple D457 connected to 1 Deser :
 	 * - IPU7 <a|b|c|d>-<mipi port index>
@@ -6881,7 +6881,7 @@ static int ds5_chrdev_init(struct i2c_client *c, struct ds5 *state)
 	struct cdev *ds5_cdev = &state->dfu_dev.ds5_cdev;
 	struct class **ds5_class = &state->dfu_dev.ds5_class;
 #ifndef CONFIG_OF
-	struct d4xx_pdata *pdata = c->dev.platform_data;
+	struct serdes_platform_data *pdata = c->dev.platform_data;
 	char suffix = pdata->suffix;
 #endif
 	struct device *chr_dev;
@@ -6920,7 +6920,7 @@ static int ds5_chrdev_init(struct i2c_client *c, struct ds5 *state)
 	*dev_num = MKDEV(MAJOR(*dev_num), MINOR(*dev_num));
 	/* Create a device node for this device. */
 #ifndef CONFIG_OF
-	struct d4xx_subdev_info *spdata = &pdata->subdev_info[0];
+	struct serdes_subdev_info *spdata = &pdata->subdev_info[0];
 	/*
 	 * suffix syntaxe for multiple D457 connected to 1 Deser :
 	 * - IPU7/IPU6 upstream both standalone or aggregated links <a|b|c|d>-<mipi port index>
@@ -7282,7 +7282,7 @@ static int ds5_i2c_addr_setting(struct i2c_client *c, struct ds5 *state)
 	int i;
 	u8 val;
 	int ret;
-	struct d4xx_pdata *dpdata = c->dev.platform_data;
+	struct serdes_platform_data *dpdata = c->dev.platform_data;
 	unsigned short ser_alias;
 	unsigned short sensor_alias;
 
