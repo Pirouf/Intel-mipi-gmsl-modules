@@ -262,6 +262,8 @@
  */
 #define MAX96724_VIDEO_PIPE_SEL_0_ADDR 0x00F0  /* Pipe 0/1 input: GMSL A/B */
 #define MAX96724_VIDEO_PIPE_SEL_1_ADDR 0x00F1  /* Pipe 2/3 input: GMSL C/D */
+#define MAX96724_VIDEO_PIPE_SEL_2_ADDR 0x00F2  /* Pipe 4/5 input: GMSL A/B max96712 only */
+#define MAX96724_VIDEO_PIPE_SEL_3_ADDR 0x00F3  /* Pipe 6/7 input: GMSL C/D max96712 only */
 #define MAX96724_VIDEO_PIPE_EN_ADDR    0x00F4  /* Enable Video Pipes */
 #define MAX96724_VIDEO_PIPE_SEL(pipe) (MAX96724_VIDEO_PIPE_SEL_0_ADDR + ((pipe) / 2))
 #define MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(link) GENMASK(1, 0) << (MAX96724_FLD_OFS(link, 4, 2) + 2)
@@ -1719,10 +1721,15 @@ int max96724_get_available_pipe_id(struct device *dev, int vc_id, u32 src_link)
 	int pipe_id = -ENOMEM;
 	int err = 0;
 	struct max96724 *priv = dev_get_drvdata(dev);
+	int _vc_id = vc_id % MAX96724_MAX_PIPES;
 
 	mutex_lock(&priv->lock);
 	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+		if (i == _vc_id && !priv->pipe[i].st_count) {
+#else
 		if (i == vc_id && !priv->pipe[i].st_count) {
+#endif
 			priv->pipe[i].st_count++;
 			priv->pipe[i].src_link = src_link;
 			pipe_id = i;
@@ -1789,6 +1796,22 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
 			 __func__, max96724_get_link_name(src_link));
 		return;
 	}
+
+	/* disable each video pipe configuration corresponding to the reset link */
+	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+
+		if (src_link != priv->pipe[i].src_link)
+			continue;
+
+		dev_dbg(dev, "%s: disable %s video pipe %d\n",
+			__func__, max96724_get_link_name(src_link), i);
+
+		/* disable video pipe if is no longer used */
+		err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+				MAX96724_VIDEO_PIPE_EN_FIELD(i),
+				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
+	}
+
 	/* Re-Check GMSL link status after initial configuration */
 	{
 		unsigned int link_status = 0;
@@ -1925,8 +1948,16 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 	u8 link_id = max96724_link_to_port(src_link);
 
 	u8 vc_id_2b_lsb = ((u8) vc_id) & 0x3;
+#ifdef CONFIG_VIDEO_D4XX_MAX9295_VC_EXT
+	u8 vc_id_3b_src = MAX96724_FIELD_PREP(MAX96724_MAP_SRCDST_H_SRC_VC_FIELD, (vc_id >> 2));
+#else
 	u8 vc_id_3b_src = MAX96724_FIELD_PREP(MAX96724_MAP_SRCDST_H_SRC_VC_FIELD, 0U);
+#endif
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+	u8 vc_id_3b_dst = MAX96724_FIELD_PREP(MAX96724_MAP_SRCDST_H_DST_VC_FIELD, (vc_id >> 2));
+#else
 	u8 vc_id_3b_dst = MAX96724_FIELD_PREP(MAX96724_MAP_SRCDST_H_DST_VC_FIELD, 0U);
+#endif
 
 	if (data_type2 == 0x0)
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
@@ -2198,13 +2229,21 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 	map_pipe_control[15].val = (vc_id_3b_src | vc_id_3b_dst);
 	map_pipe_control[16].val = (vc_id_3b_src | vc_id_3b_dst);
 
-	dev_info(dev, "%s: %s pipe %u set on vc_id=%u [vc_id_3bits: src:0x%x, dst:0x%x] \n",
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+	dev_info(dev, "%s: %s pipe %u set on vc_ext_id=%u [vc_id_3bits: src:0x%x, dst:0x%x] \n",
 		__func__,
 		 max96724_get_link_name(src_link),
 		 pipe_id,
 		 vc_id,
 		 vc_id_3b_src,
 		 vc_id_3b_dst);
+#else
+	dev_info(dev, "%s: %s pipe %u set on vc_id=%u\n",
+		__func__,
+		 max96724_get_link_name(src_link),
+		 pipe_id,
+		 vc_id_2b_lsb);
+#endif
 #endif
 
 	/* ONLY on initial streaming, skip if CSI already streaming data
@@ -2257,7 +2296,26 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 			MAX96724_VIDEO_PIPE_EN_FIELD(0),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(0), 0U));
 #else
-	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+	/* Video Pipe Disable Selection
+	 * if same link source, disable all before re-nable one-by-one.
+	 *
+	 * REG 0x00F4: Enable/disable Video Pipes
+	 *   Bit[3:0] = <pipe_id>: Enable Pipe X
+	 */
+	if (src_link_st_count > 1) {
+		for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+			if (!priv->pipe[i].st_count)
+				continue;
+
+			if (src_link != priv->pipe[i].src_link)
+				continue;
+
+			err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+				MAX96724_VIDEO_PIPE_EN_FIELD(i),
+				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
+		}
+	} else
+		err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
 			MAX96724_VIDEO_PIPE_EN_FIELD(pipe_id),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(pipe_id), 0U));
 #endif
@@ -2353,6 +2411,7 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 		// 0x02: ALT_MEM_MAP8, 0x10: ALT2_MEM_MAP8
 		err |= MAX96724_WRITE_REG(priv->regmap, MAX96724_MIPI_TX_ALT_MEM(csi_id), 0x10);
 
+
 	/* Configure per Pipe 0, 1, 2 and 3 MIPI interleaved-SYNC FCFS aggregation 
 	 * Aggregator A, B, C and D corresponds to GMSL A, B, C and D input src
 	*/
@@ -2385,7 +2444,11 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 			| MAX96724_MIPI_TX_LANE_CNT_FIELD,
 			MAX96724_FIELD_PREP(MAX96724_MIPI_TX_CPHY_EN_FIELD,
 					    priv->csi_phy == MAX96724_CSI_CPHY ? 1U : 0U)
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+			| MAX96724_FIELD_PREP(MAX96724_MIPI_TX_VCX_EN_FIELD, MAX96724_VC_4_BITS)
+#else
 			| MAX96724_FIELD_PREP(MAX96724_MIPI_TX_VCX_EN_FIELD, MAX96724_VC_2_BITS)
+#endif
 			| MAX96724_LANE_CTRL_MAP(priv->dst_n_lanes-1));
 
 #if defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
@@ -2397,7 +2460,26 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 			MAX96724_VIDEO_PIPE_EN_FIELD(0),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(0), 1U));
 #else
-	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+	/* Video Pipe Enable Selection
+	 * if same link source activate at least twice, disable all concurrent streams before re-nable one-by-one.
+	 *
+	 * REG 0x00F4: Enable/disable Video Pipes
+	 *   Bit[3:0] = <pipe_id>: Enable Pipe X
+	 */
+	if (src_link_st_count > 1) {
+		for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+			if (!priv->pipe[i].st_count)
+				continue;
+
+			if (src_link != priv->pipe[i].src_link)
+				continue;
+
+			err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+				MAX96724_VIDEO_PIPE_EN_FIELD(i),
+				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 1U));
+		}
+	} else
+		err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
 			MAX96724_VIDEO_PIPE_EN_FIELD(pipe_id),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(pipe_id), 1U));
 #endif
@@ -2530,6 +2612,14 @@ int max96724_init_settings(struct device *dev)
 
 		err |= __max96724_set_pipe_d4xx(dev, i, GMSL_CSI_DT_YUV422_8,
 						GMSL_CSI_DT_EMBED, i, priv->dst_link, priv->src_link);
+
+		/*
+		 * REG 0x00F4: disable Video Pipes by default
+		 *   Bit[3:0] = <pipe_id>: Disable Pipe 0/1/2/3.
+		 */
+		err |= MAX96724_UPDATE_BITS(map, MAX96724_VIDEO_PIPE_EN_ADDR,
+					   MAX96724_VIDEO_PIPE_EN_FIELD(i),
+					   MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
 	}
 	if (err) {
 		dev_err(dev, "%s: Failed to configure %s link to Video pipes : %d\n",
@@ -2672,10 +2762,17 @@ int max96724_set_pipe(struct device *dev, int pipe_id,
 		st_count++;
 	}
 
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+	dev_info(dev, "%s() : %s Re-configuring pipe_id %d, data_type1 %x, data_type2 %x, vc_ext_id %u\n",
+		__func__,
+		max96724_get_link_name(src_link),
+		pipe_id, data_type1, data_type2, (vc_id % MAX96724_MAX_PIPES));
+#else
 	dev_info(dev, "%s() : %s Re-configuring pipe_id %d, data_type1 %x, data_type2 %x, vc_id %u\n",
 		__func__,
 		max96724_get_link_name(src_link),
-		pipe_id, data_type1, data_type2, vc_id);
+		pipe_id, data_type1, data_type2, (vc_id % MAX96724_MAX_PIPES));
+#endif
 
 	err = __max96724_set_pipe_d4xx(dev, pipe_id, data_type1, data_type2, vc_id, priv->dst_link, src_link);
 
@@ -2717,6 +2814,7 @@ int max96724_set_pipe(struct device *dev, int pipe_id,
 		priv->dst_n_lanes);
 
 	/* Enable MIPI TX controller and enable PHY CLK cycle
+	*/
 	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_MIPI_TX_LANE_CNT(priv->dst_link),
 		MAX96724_MIPI_TX_WAKEUP_CYC_FIELD,
 		MAX96724_FIELD_PREP(MAX96724_MIPI_TX_WAKEUP_CYC_FIELD, 1U));
@@ -2727,7 +2825,6 @@ int max96724_set_pipe(struct device *dev, int pipe_id,
 			priv->csi_phy == MAX96724_CSI_CPHY ? "CPHY" : "DPHY",
 			err);
 	}
-	*/
 
 	// enable CSI out link after initialization complet
 	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_CSI_OUT_EN_ADDR,
