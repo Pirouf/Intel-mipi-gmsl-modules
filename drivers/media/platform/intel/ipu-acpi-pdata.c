@@ -725,11 +725,11 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 #else
 	        snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
 			 SUFFIX_BASE + i, port);
+#endif
 		serdes_sdinfo[i].ser_phys_addr = serdes_info.ser_phys_addr;
 
 		memcpy(serdes_sdinfo[i].ser_gpio, serdes_info.ser_gpio, sizeof(struct gpiod_lookup) * MAX_SER_GPIO_NUM);
 		serdes_sdinfo[i].sensor_dt = serdes_info.sensor_dt;
-#endif
 	}
 
 	(*pdata)->subdev_info = serdes_sdinfo;
