@@ -642,6 +642,9 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		serdes_sdinfo[i].board_info.platform_data = module_pdata[i];
 
 		/* serdes_subdev_info */
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		serdes_sdinfo[i].aggregated_link = 1;
+#endif
 		serdes_sdinfo[i].rx_port = i;
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
 
@@ -709,22 +712,26 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 				 SUFFIX_BASE + i + (*pdata)->des_port , port);
 		} else {
 			if (i >= 1) {
-				serdes_sdinfo[i].aggregated_link = i;
 				serdes_suffix = (*pdata)->suffix + i;
 				pr_info("IPU ACPI: Add %s %cnamespacing on aggregated-link sensors %d",
 					sensor_name,
 					serdes_suffix,
 					serdes_info.deser_num);
 			} else {
-				serdes_sdinfo[i].aggregated_link = 0;
 				serdes_suffix = (*pdata)->suffix;
 			}
+			serdes_sdinfo[i].aggregated_link = 1; //default one sensor per-SER
 			snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
 				 SUFFIX_BASE + i, port);
 		}
 #else
 	        snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
 			 SUFFIX_BASE + i, port);
+#endif
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		if ((!strcmp(hid_name, "INTC234Z")) ||
+		    (!strcmp(hid_name, "INTC031Z"))) // Stereo Zed-X two sensors per-SER
+			serdes_sdinfo[i].aggregated_link = 2;
 #endif
 		serdes_sdinfo[i].ser_phys_addr = serdes_info.ser_phys_addr;
 
@@ -812,6 +819,17 @@ int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 				deser_lanes = 2;
 				lanes = 2;
 				subdev_num = 1;
+			}
+#endif
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+			/* Stereo Zed-X two sensors per-SER must be 4 subdev PDATA
+			 * fallback from PDATA corner-cases
+			 *  leading to max9x ar0234 misconfiguration
+			 */
+			if ((!strcmp(hid_name, "INTC234Z")) ||
+			    (!strcmp(hid_name, "INTC031Z")) &&
+			    (subdev_num != 4)) {
+				subdev_num = 4;
 			}
 #endif
 		pdata->bus_type = (*sensor_sd)->csi2->bus_type;
