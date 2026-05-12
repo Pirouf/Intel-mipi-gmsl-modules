@@ -172,6 +172,28 @@ static const struct ipu_acpi_devices supported_devices[] = {
 		.sensor_dt = MIPI_CSI2_TYPE_YUV422_8,
 	},
 #endif
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	{
+		.hid_name = "INTC031Z",
+		.real_driver = ISX031_NAME,
+		.get_platform_data = get_sensor_pdata,
+		.priv_data = NULL,
+		.priv_size = 0,
+		.connect = TYPE_SERDES,
+		.serdes_name = "max9x",
+		.sensor_physical_addr = ISX031_I2C_ADDRESS,
+		.link_freq = 1600,
+		.ser_physical_addr = 0x42,
+		.ser_gpio = {
+			{
+				.chip_hwnum = 0,
+				.con_id = "reset",
+				.flags = GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN,
+			},
+		},
+		.sensor_dt = MIPI_CSI2_TYPE_YUV422_8,
+	},//  INTEL generic max9x HID for ZED-X-ONE ISX031 test-purpose-only
+#endif
 #if IS_ENABLED(CONFIG_VIDEO_AR0820)
 	{ 
 		.hid_name = "AR0820",
@@ -249,6 +271,78 @@ static const struct ipu_acpi_devices supported_devices[] = {
 	},// AR0234 HID
 #endif
 #endif
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	{
+		.hid_name = "INTC234O",
+		.real_driver = AR0234_NAME,
+		.get_platform_data = get_sensor_pdata,
+		.priv_data = NULL,
+		.priv_size = 0,
+		.connect = TYPE_SERDES,
+		.serdes_name = "max9x",
+		.sensor_physical_addr = 0x10,
+		.link_freq = 1200,
+		.ser_physical_addr = 0x42,
+		.ser_gpio = {
+			{
+				.chip_hwnum = 0,
+				.con_id = "reset",
+				.flags = GPIO_ACTIVE_LOW,
+			},
+		},
+		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
+	},//  INTEL generic max9x HID for ZED-X-ONE AR0234 test-purpose-only
+	{
+		.hid_name = "INTC234Z",
+		.real_driver = AR0234_NAME,
+		.get_platform_data = get_sensor_pdata,
+		.priv_data = NULL,
+		.priv_size = 0,
+		.connect = TYPE_SERDES,
+		.serdes_name = "max9x",
+		.sensor_physical_addr = 0x10,
+		.link_freq = 1200,
+		.ser_physical_addr = 0x62,
+		.ser_gpio = {
+			{
+				.chip_hwnum = 0,
+				.con_id = "ignore",
+				.flags = GPIO_ACTIVE_HIGH,
+			},
+			{
+				.chip_hwnum = 8,
+				.con_id = "reset",
+				.flags = GPIO_ACTIVE_LOW,
+			},
+			{
+				.chip_hwnum = 7,
+				.con_id = "reset",
+				.flags = GPIO_ACTIVE_LOW,
+			},
+		},
+		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
+	},//  INTEL generic max9x HID for ZED-X (stereo AR0234 LEFT+RIGHT) test-purpose-only
+	{
+		.hid_name = "INTC234M",
+		.real_driver = AR0234_NAME,
+		.get_platform_data = get_sensor_pdata,
+		.priv_data = NULL,
+		.priv_size = 0,
+		.connect = TYPE_SERDES,
+		.serdes_name = "max9x",
+		.sensor_physical_addr = 0x18,
+		.link_freq = 1200,
+		.ser_physical_addr = 0x62,
+		.ser_gpio = {
+			{
+				.chip_hwnum = 7,
+				.con_id = "reset",
+				.flags = GPIO_ACTIVE_LOW,
+			},
+		},
+		.sensor_dt = MIPI_CSI2_TYPE_RAW10,
+	},//  INTEL generic max9x HID for ZED-X (stereo AR0234 just RIGHT) test-purpose-only
+#endif
 #if IS_ENABLED(CONFIG_VIDEO_D4XX)
 	{ 
 		.hid_name = "INTC10CD",
@@ -304,6 +398,13 @@ static const struct acpi_device_id ipu_acpi_match[] = {
 #endif
 #if IS_ENABLED(CONFIG_VIDEO_AR0234)
 	{ "INTC0234", 0 },
+#endif
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	{ "ZEDX234M", 0 },	// ZED-X and ZED-X-ONE HID max9296
+	{ "ZEDX234L", 0 },	// ZED-X and ZED-X-ONE HID max96724
+	{ "INTC234O", 0 },	// Intel generic max9x HID for ZED-X-ONE (ar0234 + max9295a)
+	{ "INTC234Z", 0 },	// Intel generic max9x HID for ZED-X stereo (ar0234 + max9295d)
+	{ "INTC234M", 0 },	// Intel generic max9x HID for ZED-X mini stereo (ar0234 + max9295d)
 #endif
 #if IS_ENABLED(CONFIG_VIDEO_D4XX)
 	{ "INTC10CD", 0 },	// D457 HID
