@@ -1959,9 +1959,11 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
 	int _pipe_id = vc_id_3b_dst > 0 ? (MAX96724_MAX_PIPES - 1) - (vc_id % MAX96724_MAX_PIPES) : pipe_id;
+	int _fwd_id = link_id;
 	int _aggregator_id = _pipe_id;
 	u8 en_mapping_num = 0xFF;
 #else
+	int _fwd_id = pipe_id;
 	int _pipe_id = pipe_id;
 	u8 en_mapping_num = 0x0F;
 #endif
@@ -2355,15 +2357,17 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 			MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(_pipe_id)
 			| MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(_pipe_id),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(_pipe_id), link_id)
-			| MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(_pipe_id), _pipe_id));
+			| MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(_pipe_id), _fwd_id));
 	if (err)
 		dev_err(dev, "%s: Failed to  select all streams (X,Y,Z and/or U) mode: %d\n",
 			__func__,
 			err);
 	else
-		dev_dbg(dev, "%s: mapped max967xx pipe %u to streams (X,Y,Z and/or U) mode\n",
+		dev_dbg(dev, "%s: mapped max967xx link %c to video pipe %u (through pipe %c) mode\n",
 			__func__,
-			_pipe_id);
+			'A' + link_id,
+			_pipe_id,
+			_fwd_id == 3 ? 'U' : 'X' + _fwd_id);
 #endif
 
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
@@ -2384,10 +2388,13 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 
 
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
-	if (vc_id_3b_dst > 0)
+	/* Trial #1 - uncomment to test only alternative link-aggregation
+	if (vc_id_3b_dst > 0) {
 		_aggregator_id = 0U;
-	else
+	} else {
 		_aggregator_id = 1U;
+	}
+	*/
 
 	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_MIPI_TX_MAP_CON(_aggregator_id),
 		MAX96724_MAP_CON_SYNC_PIPE_0_FIELD
@@ -2402,6 +2409,25 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 		| MAX96724_FIELD_PREP(MAX96724_MAP_CON_SYNC_PIPE_3_FIELD, 0U)
 		| MAX96724_MAP_CON_SYNC_PIPE_MASTER(_pipe_id)
 		| MAX96724_FIELD_PREP(MAX96724_MAP_CON_SYNC_EN_4WxH_FIELD, 0U));
+
+	/* Trial #2 - uncomment to test concatenation
+	if (src_link_st_count < 2)
+	else
+	  err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_MIPI_TX_MAP_CON(_aggregator_id),
+		MAX96724_MAP_CON_SYNC_PIPE_SEL_FIELD(_pipe_id)
+		| MAX96724_MAP_CON_SYNC_EN_4WxH_FIELD,
+		MAX96724_FIELD_PREP(MAX96724_MAP_CON_SYNC_PIPE_SEL_FIELD(_pipe_id), 1U)
+		| MAX96724_FIELD_PREP(MAX96724_MAP_CON_SYNC_EN_4WxH_FIELD, 1U));
+	*/
+
+	dev_info(dev, "%s: mapped max967xx: fwd-link %c\t through Input pipe %c\t to Video pipe %u\t through Aggregator %c\t to CSI %u\n",
+		__func__,
+		 'A' + link_id,
+		 _fwd_id == 3 ? 'U' : 'X' + _fwd_id,
+		 _pipe_id,
+		 'A' + _aggregator_id,
+		 csi_id);
+
 #else
 	/* Configure per Pipe 0, 1, 2 and 3 MIPI interleaved-SYNC FCFS aggregation 
 	 * Aggregator A, B, C and D corresponds to GMSL A, B, C and D input src
