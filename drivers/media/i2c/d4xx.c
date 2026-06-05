@@ -1862,9 +1862,13 @@ static int ds5_setup_pipeline(struct ds5 *state, u8 data_type1, u8 data_type2,
 {
 	int ret = 0;
 	dev_warn(&state->client->dev,
-			 "set pipe %d, data_type1: 0x%x, \
-			 data_type2: 0x%x, vc_id: %u\n",
-			 pipe_id, data_type1, data_type2, vc_id);
+#if (defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)) && !defined(CONFIG_VIDEO_D4XX_MAX9295_VC_EXT)
+		 "set pipe %d, data_type1: 0x%x, data_type2: 0x%x, vc_ext_id: %u (vc_ds5_id: %u)\n",
+		 pipe_id, data_type1, data_type2, vc_id, (vc_id % NR_OF_DS5_STREAMS));
+#else
+		 "set pipe %d, data_type1: 0x%x, data_type2: 0x%x, vc_id: %u\n",
+		 pipe_id, data_type1, data_type2, vc_id);
+#endif
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 	ret = max96724_switch_link_channel(state->dser_dev);
 	ret |= max9295_set_pipe(state->ser_dev, pipe_id,
@@ -1976,7 +1980,11 @@ static int ds5_configure(struct ds5 *state)
 	if (ret < 0)
 		return ret;
 
+#if (defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)) && !defined(CONFIG_VIDEO_D4XX_MAX9295_VC_EXT)
+	ret = ds5_write(state, md_addr, ((vc_id % NR_OF_DS5_STREAMS) << 8) | md_fmt);
+#else
 	ret = ds5_write(state, md_addr, (vc_id << 8) | md_fmt);
+#endif
 	if (ret < 0)
 		return ret;
 
@@ -2601,11 +2609,11 @@ static int ds5_s_ctrl(struct v4l2_ctrl *ctrl)
 	dev_dbg(&state->client->dev, "%s(): %s - ctrl: %s, value: %d\n",
 		__func__, ds5_get_sensor_name(state), ctrl->name, ctrl->val);
 
-	mutex_lock(&state->lock);
-
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-	//ret = max96724_switch_link_channel(state->dser_dev);
+	ret = max96724_switch_link_channel(state->dser_dev);
 #endif
+
+	mutex_lock(&state->lock);
 
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
@@ -4070,7 +4078,7 @@ error:
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
-static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,7,2,5, 2,5,0,7, 1,6,3,4, 3,4,1,6};
+static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,7,1,6, 1,6,0,7, 2,5,3,4, 3,4,2,5};
 #else
 static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,1,2,3, 2,3,0,1, 1,0,3,2, 3,2,1,0};
 #endif

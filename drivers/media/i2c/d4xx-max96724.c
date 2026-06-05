@@ -1,5 +1,3 @@
-
-
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2017-2024, INTEL CORPORATION.  All rights reserved.
@@ -839,18 +837,6 @@ int max96724_check_status(struct device *dev, u32 src_link)
 			priv->dst_n_lanes);
 	 */
 
-	/* Turn on ALL link channels
-	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
-		 ~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(2, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(3, 0), 1U)));
-	if (err)
-		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
-			  __func__,
-			  err);
-	 */
-
 	/* Re-Check GMSL link status after initial configuration */
 	{
 		unsigned int link_status = 0;
@@ -963,7 +949,7 @@ int max96724_switch_link_channel(struct device *dev)
 
 	mutex_unlock(&priv->lock);
 
-	msleep(50);	// delay to settle link
+	msleep(5);	// delay to settle link
 
 	return err;
 }
@@ -1729,7 +1715,7 @@ int max96724_get_available_pipe_id(struct device *dev, int vc_id, u32 src_link)
 	mutex_lock(&priv->lock);
 	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
 #ifdef CONFIG_INTEL_IPU_VC_EXT
-		if (i == _vc_id && !priv->pipe[i].st_count) {
+		if (i == _vc_id && priv->pipe[i].st_count < 2) {
 #else
 		if (i == vc_id && !priv->pipe[i].st_count) {
 #endif
@@ -1739,20 +1725,6 @@ int max96724_get_available_pipe_id(struct device *dev, int vc_id, u32 src_link)
 			break;
 		}
 	}
-
-	/* Turn on ALL link channels
-	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
-		 ~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(2, 0), 1U)
-		   | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(3, 0), 1U)));
-	if (err)
-		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
-			  __func__,
-			  err);
-
-	msleep(50);	// delay to settle link
-	 */
 
 	mutex_unlock(&priv->lock);
 
@@ -1767,8 +1739,15 @@ int max96724_release_pipe(struct device *dev, int pipe_id)
 	if (pipe_id < 0 || pipe_id >= MAX96724_MAX_PIPES)
 		return -EINVAL;
 
+	if (!priv->pipe[pipe_id].st_count)
+		return 0;
+
 	mutex_lock(&priv->lock);
+#ifdef CONFIG_INTEL_IPU_VC_EXT
+	priv->pipe[pipe_id].st_count--;
+#else
 	priv->pipe[pipe_id].st_count = 0;
+#endif
 	mutex_unlock(&priv->lock);
 
 	return 0;
@@ -1916,6 +1895,7 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
 			err);
 
 	/* Enable all channels
+	 */
 	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
 		~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
 		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
@@ -1925,7 +1905,9 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
 		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
 			  __func__,
 			  err);
-	 */
+
+	/* delay to settle link */
+	msleep(100);
 }
 EXPORT_SYMBOL(max96724_reset_oneshot);
 
@@ -2040,12 +2022,6 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 
 		src_link_st_count++;
 	}
-
-	dev_info(dev, "%s: %s stream %u/%u active pipes\n",
-		__func__,
-		 max96724_get_link_name(src_link),
-		 src_link_st_count,
-		 st_count);
 
 	struct reg_pair map_pipe_select[] = {
 		{MAX96724_REG5_ADDR, 0x80}, // Enable lock
@@ -2228,19 +2204,23 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 #endif
 
 #ifdef CONFIG_INTEL_IPU_VC_EXT
-	dev_info(dev, "%s: %s pipe %u set on vc_ext_id=%u [vc_id_3bits: src:0x%x, dst:0x%x] \n",
+	dev_info(dev, "%s: %s pipe %u set on vc_ext_id=%u [vc_id_3bits: src:0x%x, dst:0x%x], %u/%u active pipes\n",
 		__func__,
 		 max96724_get_link_name(src_link),
 		 _pipe_id,
 		 vc_id,
 		 vc_id_3b_src,
-		 vc_id_3b_dst);
+		 vc_id_3b_dst,
+		 src_link_st_count,
+		 st_count);
 #else
-	dev_info(dev, "%s: %s pipe %u set on vc_id=%u\n",
+	dev_info(dev, "%s: %s pipe %u set on vc_id=%u, %u/%u active pipes\n",
 		__func__,
 		 max96724_get_link_name(src_link),
 		 _pipe_id,
-		 vc_id_2b_lsb);
+		 vc_id_2b_lsb,
+		 src_link_st_count,
+		 st_count);
 #endif
 
 	/* ONLY on initial streaming, skip if CSI already streaming data
@@ -2284,15 +2264,7 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 	 *   Bit[3:2] = <link_id>: Pipe 2 from GMSL A, B, C or D link
 	 *   Bit[1:0] = 10: Pipe 2 uses internal Pipe U
 	 */
-#if defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
-	/*
-	 * REG 0x00F4: Enable/disable Video Pipes
-	 *   Bit[3:0] = <pipe_id>: Enable Pipe X
-	 */
-	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
-			MAX96724_VIDEO_PIPE_EN_FIELD(0),
-			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(0), 0U));
-#else
+
 	/* Video Pipe Disable Selection
 	 * if same link source, disable all before re-nable one-by-one.
 	 *
@@ -2315,14 +2287,20 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 		err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
 			MAX96724_VIDEO_PIPE_EN_FIELD(_pipe_id),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(_pipe_id), 0U));
-#endif
+
 	/* ONLY on initial streaming, skip if CSI already streaming data
 	*/
 	if (st_count < 2)
 		err |= max96724_set_registers(dev, map_pipe_select,
 					      ARRAY_SIZE(map_pipe_select));
 
-#if defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
+#if !defined(CONFIG_VIDEO_D4XX_MAX96712) && !defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
+	// Enable specific pipe streams (X,Y,Z and/or U) source mapping
+	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+				MAX96724_VIDEO_PIPE_STREAM_SEL_ALL_FIELD,
+				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_STREAM_SEL_ALL_FIELD,
+						    MAX96724_VIDEO_PIPE_SRCMAP_MODE));
+#else
 	// Enable max96712 "legacy" mode
 	// Non "legacy" mode ignores pipe mapping, and selects all streams for pipe
 	// 0. The ipu doesn't know what to do with that and throws spurious data
@@ -2332,26 +2310,8 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_STREAM_SEL_ALL_FIELD,
 						    MAX96724_VIDEO_PIPE_LEGACY_MODE));
 
-	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_SEL(0),
-			MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(0)
-			| MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(0),
-			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(0), link_id)
-			| MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(0), 0U));
-	if (err)
-		dev_err(dev, "%s: Failed to  select max96712 legacy mode: %d\n",
-			__func__,
-			err);
-	else
-		dev_dbg(dev, "%s: mapped max96712 legacy mode ALL pipe to streams (Pipe X Only) mode\n",
-			__func__);
-
-#else
-	// Enable specific pipe streams (X,Y,Z and/or U) source mapping
-#if !defined(CONFIG_VIDEO_D4XX_MAX96712)
-	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
-				MAX96724_VIDEO_PIPE_STREAM_SEL_ALL_FIELD,
-				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_STREAM_SEL_ALL_FIELD,
-						    MAX96724_VIDEO_PIPE_SRCMAP_MODE));
+	//WA: override Multiple fwd-pipe source to a single video-pipe sink
+	_fwd_id = vc_id_2b_lsb;
 #endif
 	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_SEL(_pipe_id),
 			MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(_pipe_id)
@@ -2359,15 +2319,21 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_LINK_FIELD(_pipe_id), link_id)
 			| MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_SEL_INPUT_FIELD(_pipe_id), _fwd_id));
 	if (err)
-		dev_err(dev, "%s: Failed to  select all streams (X,Y,Z and/or U) mode: %d\n",
+		dev_err(dev, "%s: Failed to  select streams: %d\n",
 			__func__,
 			err);
 	else
-		dev_dbg(dev, "%s: mapped max967xx link %c to video pipe %u (through pipe %c) mode\n",
+#if !defined(CONFIG_VIDEO_D4XX_MAX96712) && !defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
+		dev_dbg(dev, "%s: mapped max967xx link %c to video pipe %u (through all X,U,Z and U pipes)\n",
+			__func__,
+			'A' + link_id,
+			_pipe_id);
+#else
+		dev_dbg(dev, "%s: mapped max967xx link %c to video pipe %u (through %c input pipe)\n",
 			__func__,
 			'A' + link_id,
 			_pipe_id,
-			_fwd_id == 3 ? 'U' : 'X' + _fwd_id);
+			_fwd_id == 3 ?  'U' : 'X' + _fwd_id);
 #endif
 
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
@@ -2388,7 +2354,10 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 
 
 #ifdef CONFIG_VIDEO_D4XX_MAX967XX_DT_VC_EXT
-	/* Trial #1 - uncomment to test only alternative link-aggregation
+	// Trial #0 - uncomment to test single link-aggregator
+	//_aggregator_id = csi_id;
+
+	/* Trial #1 - uncomment to test two-alternative link-aggregation
 	if (vc_id_3b_dst > 0) {
 		_aggregator_id = 0U;
 	} else {
@@ -2420,13 +2389,22 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 		| MAX96724_FIELD_PREP(MAX96724_MAP_CON_SYNC_EN_4WxH_FIELD, 1U));
 	*/
 
-	dev_info(dev, "%s: mapped max967xx: fwd-link %c\t through Input pipe %c\t to Video pipe %u\t through Aggregator %c\t to CSI %u\n",
+#if !defined(CONFIG_VIDEO_D4XX_MAX96712) && !defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
+	dev_info(dev, "%s: mapped fwd-link %c through X,Y,Z & U input pipes\t->\tVideo pipe %u through Aggregator %c to CSI %u\n",
+		__func__,
+		 'A' + link_id,
+		 _pipe_id,
+		 'A' + _aggregator_id,
+		 csi_id);
+#else
+	dev_info(dev, "%s: mapped fwd-link %c through %c input pipe\t->\tVideo pipe %u through Aggregator %c to CSI %u\n",
 		__func__,
 		 'A' + link_id,
 		 _fwd_id == 3 ? 'U' : 'X' + _fwd_id,
 		 _pipe_id,
 		 'A' + _aggregator_id,
 		 csi_id);
+#endif
 
 #else
 	/* Configure per Pipe 0, 1, 2 and 3 MIPI interleaved-SYNC FCFS aggregation 
@@ -2469,15 +2447,7 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 #endif
 			| MAX96724_LANE_CTRL_MAP(priv->dst_n_lanes-1));
 
-#if defined(CONFIG_VIDEO_D4XX_MAX96712_LEGACY)
-	/*
-	 * REG 0x00F4: Enable/disable Video Pipes
-	 *   Bit[3:0] = <pipe_id>: Enable Pipe X
-	 */
-	err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
-			MAX96724_VIDEO_PIPE_EN_FIELD(0),
-			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(0), 1U));
-#else
+
 	/* Video Pipe Enable Selection
 	 * if same link source activate at least twice, disable all concurrent streams before re-nable one-by-one.
 	 *
@@ -2500,7 +2470,7 @@ static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_typ
 		err |= MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
 			MAX96724_VIDEO_PIPE_EN_FIELD(_pipe_id),
 			MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(_pipe_id), 1U));
-#endif
+
 	if (err) {
 		dev_err(dev, "%s: Failed to configure pipe control %u %s %u lanes: %d\n",
 			__func__,
@@ -2803,18 +2773,6 @@ int max96724_set_pipe(struct device *dev, int pipe_id,
 
 	if (st_count > 1)
 		goto status;
-
-	/* Enable all channels
-	err = MAX96724_WRITE_REG(priv->regmap, MAX96724_REM_CC,
-		~(MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(0, 0), 1U)
-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(1, 0), 1U)
-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(2, 0), 1U)
-		  | MAX96724_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(3, 0), 1U)));
-	if (err)
-		  dev_err(dev, "%s: Failed to switch ALL link i2c channel: %d\n",
-			  __func__,
-			  err);
-	 */
 
         /* CRITICAL: DO NOT enable CSI_OUT_EN (0x040b) here!
          *
