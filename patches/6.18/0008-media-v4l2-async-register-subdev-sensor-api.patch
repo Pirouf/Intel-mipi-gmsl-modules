@@ -1,0 +1,47 @@
+From 2040967c2111f71af1bc5691c6766a5cc8827783 Mon Sep 17 00:00:00 2001
+From: "Sodhi, Vunny" <vunny.sodhi@intel.com>
+Date: Mon, 5 Oct 2026 02:18:30 -0700
+Subject: [PATCH 8/8] media: v4l2-async: register subdev sensor api
+
+* media: v4l2-fwnode: Fix subdev owner overwritten in v4l2_async_register_subdev_sensor()
+ https://kernel-team.pages.debian.net/kernel-sec/CVE-2026-68205.html
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ 6.18.0/drivers/media/v4l2-core/v4l2-fwnode.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/6.18.0/drivers/media/v4l2-core/v4l2-fwnode.c b/6.18.0/drivers/media/v4l2-core/v4l2-fwnode.c
+index cb153ce..a8becf8 100644
+--- a/6.18.0/drivers/media/v4l2-core/v4l2-fwnode.c
++++ b/6.18.0/drivers/media/v4l2-core/v4l2-fwnode.c
+@@ -1246,7 +1246,7 @@ v4l2_async_nf_parse_fwnode_sensor(struct device *dev,
+ 	return 0;
+ }
+ 
+-int v4l2_async_register_subdev_sensor(struct v4l2_subdev *sd)
++int __v4l2_async_register_subdev_sensor(struct v4l2_subdev *sd, struct module *module)
+ {
+ 	struct v4l2_async_notifier *notifier;
+ 	int ret;
+@@ -1272,7 +1272,7 @@ int v4l2_async_register_subdev_sensor(struct v4l2_subdev *sd)
+ 	if (ret < 0)
+ 		goto out_cleanup;
+ 
+-	ret = v4l2_async_register_subdev(sd);
++	ret = __v4l2_async_register_subdev(sd, module);
+ 	if (ret < 0)
+ 		goto out_unregister;
+ 
+@@ -1290,7 +1290,7 @@ out_cleanup:
+ 
+ 	return ret;
+ }
+-EXPORT_SYMBOL_GPL(v4l2_async_register_subdev_sensor);
++EXPORT_SYMBOL_GPL(__v4l2_async_register_subdev_sensor);
+ 
+ MODULE_DESCRIPTION("V4L2 fwnode binding parsing library");
+ MODULE_LICENSE("GPL");
+-- 
+2.43.0
+
