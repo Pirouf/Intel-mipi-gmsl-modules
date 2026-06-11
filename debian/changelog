@@ -1,4 +1,17 @@
+intel-mipi-gmsl-drivers (20260421-3) UNRELEASED; urgency=low
+
+  * add max9x generic Zed-X initial support for test/dev purpose only
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Fri, 17 Jul 2026 13:12:12 +0000
+
 intel-mipi-gmsl-drivers (20260421-2) UNRELEASED; urgency=low
+
+  * ipu6-isys: fix linux 7.0.0 DKMS build issue
+  * d4xx-compat: fix linux 7.0.0 DKMS build issue
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Fri, 17 Jul 2026 12:06:05 +0000
+
+intel-mipi-gmsl-drivers (20260421-1) UNRELEASED; urgency=low
 
   * initial package based of Intel MIPI-CSI Camera Reference drivers [Release 2026 Q1.2](https://github.com/intel/Intel-MIPI-CSI-Camera-Reference-Driver/commit/9ae0a6ace8aeb7d35b7c77fc79c188e620f964e8)
 
