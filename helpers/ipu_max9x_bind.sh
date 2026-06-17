@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
 		;;
 		-m|--mux)
 			shift
-			if [ ${#1} -eq 3 ]; then
+			if [ ${#1} -ge 3 ]; then
 			    mux_param=$1
 			fi
 			shift
@@ -57,7 +57,8 @@ while IFS= read -r line; do
 	entities+=("$line")
 done < <(media-ctl -p | grep entity | sed -e 's/.*: //;s/ (.*$//')
 
-declare -A mux_to_index=([a]=0 [b]=1 [c]=2 [d]=3)
+declare -A mux_to_index=([a]=0 [b]=1 [c]=2 [d]=3 [e]=0 [f]=1 [g]=2 [h]=3)
+declare -A demux_to_index=([a]=0 [b]=0 [c]=0 [d]=0 [e]=1 [f]=1 [g]=1 [h]=1)
 
 find_entity() {
 	local name=$1
@@ -74,12 +75,12 @@ find_entity() {
 des_node() {
 	local mux=$1
 	case ${mux} in
-		a-0|b-0|c-0|d-0) echo -n "max9x a";;
-		a-1|b-1|c-1|d-1) echo -n "max9x b";;
-		a-2|b-2|c-2|d-2) echo -n "max9x c";;
-		a-3|b-3|c-3|d-3) echo -n "max9x d";;
-		a-4|b-4|c-4|d-4) echo -n "max9x e";;
-		a-5|b-5|c-5|d-5) echo -n "max9x f";;
+		a-0|b-0|c-0|d-0|e-0|f-0|g-0|h-0) echo -n "max9x a";;
+		a-1|b-1|c-1|d-1|e-1|f-1|g-1|h-1) echo -n "max9x b";;
+		a-2|b-2|c-2|d-2|e-2|f-2|g-2|h-2) echo -n "max9x c";;
+		a-3|b-3|c-3|d-3|e-3|f-3|g-3|h-3) echo -n "max9x d";;
+		a-4|b-4|c-4|d-4|e-4|f-4|g-4|h-4) echo -n "max9x e";;
+		a-5|b-5|c-5|d-5|e-5|f-5|g-5|h-5) echo -n "max9x f";;
 	esac
 }
 des_src_pad() {
@@ -88,12 +89,19 @@ des_src_pad() {
 }
 des_sink_pad() {
 	local mux=$1
-	echo -n "\"$(des_node ${mux})\":$(( 4 + ${mux_to_index[${mux:0:1}]} ))"
+	local offset=4
+	echo -n "\"$(des_node ${mux})\":$(( ${offset} + ${mux_to_index[${mux:0:1}]} ))"
 }
 
 ser_node() {
 	local mux=$1
-	find_entity "max9x ${mux}"
+	case ${mux} in
+		e-0|e-1|e-2|e-3|e-4|e-5) find_entity "max9x a-$((${mux:2:1}))";;
+		f-0|f-1|f-2|f-3|f-4|f-5) find_entity "max9x b-$((${mux:2:1}))";;
+		g-0|g-1|g-2|g-3|g-4|g-5) find_entity "max9x c-$((${mux:2:1}))";;
+		h-0|h-1|h-2|h-3|h-4|h-5) find_entity "max9x d-$((${mux:2:1}))";;
+		*) find_entity "max9x ${mux}";;
+	esac
 }
 ser_src_pad() {
 	local mux=$1
@@ -101,7 +109,7 @@ ser_src_pad() {
 }
 ser_sink_pad() {
 	local mux=$1
-	echo -n "\"$(ser_node ${mux})\":0"
+	echo -n "\"$(ser_node ${mux})\":${demux_to_index[${mux:0:1}]}"
 }
 
 sen_node() {
@@ -119,12 +127,16 @@ declare -A media_mux_capture_pad=(
 	[b]=1
 	[c]=2
 	[d]=3
+	[e]=4
+	[f]=5
+	[g]=6
+	[h]=7
 )
 
 # all available   ISX031/IMX390/AR0234 max9x entity, each one represent physically connected camera.
 # muxes prefix a, b, c, d referes to max96724 or max9296 aggregated link cameras
 # muxes suffix 0, 1, 2, 3, 4, 5 is referes to csi2 mipi port mapping
-mux_list=${mux_param:-'a-0 b-0 c-0 d-0 a-1 b-1 c-1 d-1 a-2 b-2 c-2 d-2 a-3 b-3 c-3 d-3 a-4 b-4 c-4 d-4 a-5 b-5 c-5 d-5'}
+mux_list=${mux_param:-'a-0 e-0 b-0 f-0 c-0 g-0 d-0 h-0 a-1 e-1 b-1 f-1 c-1 g-1 d-1 h-1 a-2 e-2 b-2 f-2 c-2 g-2 d-2 h-2 a-3 e-3 b-3 f-3 c-3 g-3 d-3 h-3 a-4 b-4 c-4 d-4 e-4 f-4 g-4 h-4 a-5 e-5 b-5 f-5 c-5 g-5 d-5 h-5'}
 
 # Find IPU media device.
 # For case with usb camera plugged in during the boot,
@@ -162,23 +174,33 @@ dot=$($media_ctl_cmd --print-dot)
 des_route=""
 csi_route=""
 des_suffix="a"
+ser_suffix="a"
+sen_suffix="a"
 streamid=0
+ser_streamid=0
 # loop over all available IMX390/ISX031/AR0234 max9x, each one represent physically connected camera.
 for camera in $mux_list; do
 	e="$(sen_node ${camera})" 
 	if [ -z "${e}" ]; then
 		continue;
 	fi
+	
 	d="$(des_node ${camera})"
 	if [ "${des_suffix}" != "${d:6:1}" ]; then
 		des_suffix="${d:6:1}"
 		streamid=0
 	fi
 
-	echo "Bind $cap_prefix to ${sensor} ${camera} through max9x ${des_suffix}  .. " >&2
+	s="$(ser_node ${camera})"
+	if [ "${ser_suffix}" != "${s:6:1}" ]; then
+		ser_suffix="${s:6:1}"
+		ser_streamid=0
+	fi
 
 	csi2="$((${camera:2:1}))"
 	mux=${camera:0:1}
+
+	echo "Bind $cap_prefix to ${sensor} ${camera} through max9x ${ser_suffix}-${csi2} and max9x ${des_suffix}  .. " >&2
 
 	# mapping for MAX9x mux entity to IPU7|IPU6 ISYS matching entity.
 	cap_pad="${media_mux_capture_pad[${mux}]}"
@@ -188,19 +210,36 @@ for camera in $mux_list; do
 	out $media_ctl_cmd -l "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1)) -> \"Intel ${cap_prefix} ISYS Capture ${isys_cap}\":0[1]"
 
 	# subdev entity '['pad-number '/' stream-number '->' pad-number '/' stream-number '[' route-flags ']' ']' ;
+	if [ $ser_streamid -eq 0 ]; then
+	    if [ "${mux}" \=  "${ser_suffix}" ]; then
+		ser_route="0/${ser_streamid}->2/${streamid}[1]"
+	    else
+		ser_route="1/${ser_streamid}->2/${streamid}[1]"
+	    fi
+	else
+	    if [ "${mux}" \=  "${ser_suffix}" ]; then
+		ser_route=${ser_route}",0/${ser_streamid}->2/${streamid}[1]"
+	    else
+		ser_route=${ser_route}",1/${ser_streamid}->2/${streamid}[1]"
+	    fi
+	fi
+	des_pad=$(des_sink_pad ${camera})
+	des_pad=$((${des_pad:10}))
 	if [ $streamid -eq 0 ]; then
-		des_route="$((${cap_pad} + 4))/${streamid}->0/${streamid}[1]"
+		des_route="$((${des_pad} + 0))/${streamid}->0/${streamid}[1]"
 		csi_route="0/${streamid}->$((${cap_pad} + 1))/${streamid}[1]"
 	else
-		des_route=${des_route}",$((${cap_pad} + 4))/${streamid}->0/${streamid}[1]"
+		des_route=${des_route}",$((${des_pad} + 0))/${streamid}->0/${streamid}[1]"
 		csi_route=${csi_route}",0/${streamid}->$((${cap_pad} + 1))/${streamid}[1]"
 	fi
-	out $media_ctl_cmd -R "\"$(ser_node ${camera})\"[0/0->2/${streamid}[1]]"
+
+	out $media_ctl_cmd -R "\"$(ser_node ${camera})\"[${ser_route}]"
 	out $media_ctl_cmd -R "\"$(des_node ${camera})\"[${des_route}]"
 	out $media_ctl_cmd -R "\"Intel ${cap_prefix} CSI2 ${csi2}\"[${csi_route}]"
 
+	#out $media_ctl_cmd -V "$(sen_src_pad ${camera})/${ser_streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(sen_src_pad ${camera})/0 ${fmt}"
-	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/0 ${fmt}"
+	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/${ser_streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(ser_src_pad ${camera})/${streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(des_sink_pad ${camera})/${streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(des_src_pad ${camera})/${streamid} ${fmt}"
@@ -216,9 +255,9 @@ for camera in $mux_list; do
 if [ ${sensor} = "isx031" ]; then
 	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1920,height=1536,pixelformat=UYVY
 elif [ ${sensor} = "imx390" ]; then
-	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1920,height=1200,pixelformat=NV12
+	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1920,height=1200,pixelformat=BA12
 elif [ ${sensor} = "ar0234" ]; then
-	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1280,height=960,pixelformat=NV12
+	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1280,height=960,pixelformat=BA10
 fi
 	# disable ipu link enumeration feature, if exists
 	[[ -e "$(${v4l2_util} -d $dev_ln -L | grep enumerate_graph_link)" ]] && out ${v4l2_util} -d $dev_ln -c enumerate_graph_link=0
@@ -231,4 +270,5 @@ fi
 		for i in $(seq 0 $streamid); do out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":0/$((${i})) ${fmt}"; done
 	fi
 	streamid=$(($streamid + 1))
+	ser_streamid=$(($ser_streamid + 1))
 done
