@@ -40,6 +40,7 @@ This repository contains reference drivers and configurations for Intel MIPI CSI
 | ISX031          | GMSL       | Sensing         | IPU6EP, IPU6EPMTL, IPU75XA |
 | ISX031          | MIPI CSI-2 | D3 Embedded     | IPU6EP, IPU6EPMTL, IPU75XA |
 | D4XX            | GMSL       | Realsenseai     | IPU6EP, IPU6EPMTL, IPU75XA |
+| ZEDX            | GMSL       | Stereolabs      | IPU6EP, IPU6EPMTL, IPU75XA |
 
 > **Note:** \
 IPU6EP represents ADL, TWL, ASL and RPL platforms; \
@@ -157,16 +158,36 @@ For example  d3embedded ISX031 GMSL modules on IPU7 (Intel Core Ultra 3 - Panthe
 | Rotation (max9x deserializer out-link)   | 180        |
 | PPR Value (deserializer # of lanes)      | 2          |
 | PPR Unit (# of Cameras per-device)       | 4          |
-| Camera module label                      | d4xx       |
+| Camera module label                      | max96724   |
 | MIPI Port (Index)                        | 2          |
 | LaneUsed (serializer # of lanes)         | x4         |
 | Number of I2C                            | 3          |
-| I2C Channel                              | I2C2       |
+| I2C Channel                              | I2C1       |
 | Device0 I2C Address (deserilizer)        | 27         |
 | Device1 I2C Address (serializer)         | 42         |
 | Device2 I2C Address (sensor)             | 12         |
 
 Note: Using `INTC031M` HID, the `Rotation` selection defines `max9x` deserializer output-link mapping: CSI PHY A (`Rotation=0`) or CSI PHY C (`Rotation=180`)
+
+For example, Stereolabs ZEDX-one-gs `INTC234O` and ZEDX `INTC234Z` GMSL modules on IPU7 (Intel Core Ultra 3 - Panther Lake) - only one ACPI entry for all ZEDX Cameras
+| UEFI Custom Sensor (ZEDX-one-gs / ZEDX)  | Camera 1   | Camera 2   |
+|------------------------------------------|------------|------------|
+| GMSL deserializer suffix                 | a          | c          |
+| Custom HID                               | INTC234O   | INTC234Z   |
+| CSI bus-type                             | CPHY       | CPHY       |
+| Rotation (max9x deserializer out-link)   | 0          | 180        |
+| PPR Value (deserializer # of lanes)      | 2          | 2          |
+| PPR Unit (# of Cameras per-device)       | 4          | 4          |
+| Camera module label                      | max96724   | max96724   |
+| MIPI Port (Index)                        | 2          | 2          |
+| LaneUsed (serializer # of lanes)         | x2         | x2         |
+| Number of I2C                            | 3          | 3          |
+| I2C Channel                              | I2C0       | I2C1       |
+| Device0 I2C Address (deserilizer)        | 27         | 27         |
+| Device1 I2C Address (serializer)         | 44         | 64         |
+| Device2 I2C Address (sensor)             | 14         | 14         |
+
+Note: Using `INTC234Z` and `INTC234O` HIDs, the `Rotation` selection defines `max9x` deserializer output-link mapping: CSI PHY A (`Rotation=0`) or CSI PHY C (`Rotation=180`)
 
 8. User to need to double check and edit `modprobe.d` module config file if necessary to configure it for `max9296` or `max967xx` add-on board
 
@@ -371,7 +392,15 @@ Bind IPU7 to isx031 b-2 through max9x c  ..
 Bind IPU7 to isx031 c-2 through max9x c  ..
 Bind IPU7 to isx031 d-2 through max9x c  ..
 ```
+For example of 4x Stereolabs ZEDX-one-GS on IPU7 (Intel Core Ultra 3 - Panther Lake)
 
+```
+./helpers/ipu_max9x_bind.sh -q -s ar0234
+Bind IPU7 to ar0234 a-0 through max9x a  ..
+Bind IPU7 to ar0234 b-0 through max9x a  ..
+Bind IPU7 to ar0234 c-0 through max9x a  ..
+Bind IPU7 to ar0234 d-0 through max9x a  ..
+```
 10. Enjoy your GMSL cameras streaming on Intel IPU MIPI CSI2 ports!
 
 For example 4x D457 on IPU7 (Intel Core Ultra 3 - Panther Lake) - 
@@ -477,6 +506,20 @@ sink_1::xpos=1920 sink_1::ypos=0 sink_1::width=1920 sink_1::height=1536 sink_1::
 sink_2::xpos=0 sink_2::ypos=1536 sink_2::width=1920 sink_2::height=1536 sink_2::zorder=3 \
 sink_3::xpos=1920 sink_3::ypos=1536 sink_3::width=1920 sink_3::height=1536 sink_3::zorder=4 ! videoconvert ! fakesink
 
+```
+
+For example 4x Stereolabs ZED-X GMSL modules on IPU7 (Intel Core Ultra 3 - Panther Lake)
+```
+gst-launch-1.0 -e -v \
+v4l2src device=/dev/video-ar0234-a-0 ! 'video/x-raw, width=1280, height=960, format=BG10, pixel-aspect-ratio=1/1, framerate=30/1' !  comp.sink_0 \
+v4l2src device=/dev/video-ar0234-b-0 ! 'video/x-raw, width=1280, height=960, format=BG10, pixel-aspect-ratio=1/1, framerate=30/1' ! comp.sink_1 \
+v4l2src device=/dev/video-ar0234-c-0 ! 'video/x-raw, width=1280, height=960, format=BG10, pixel-aspect-ratio=1/1, framerate=30/1' ! comp.sink_2 \
+v4l2src device=/dev/video-ar0234-d-0 ! 'video/x-raw, width=1280, height=960, format=BG10, pixel-aspect-ratio=1/1, framerate=30/1' ! comp.sink_3 \
+compositor name=comp \
+sink_0::xpos=0 sink_0::ypos=0 sink_0::width=1280 sink_0::height=960 sink_0::zorder=1 \
+sink_1::xpos=1280 sink_1::ypos=0 sink_1::width=1280 sink_1::height=960 sink_1::zorder=2 \
+sink_2::xpos=0 sink_2::ypos=960 sink_2::width=1280 sink_2::height=960 sink_2::zorder=3 \
+sink_3::xpos=1280 sink_3::ypos=960 sink_3::width=1280 sink_3::height=960 sink_3::zorder=4 ! videoconvert ! fakesink
 ```
 
 ## Documentation
