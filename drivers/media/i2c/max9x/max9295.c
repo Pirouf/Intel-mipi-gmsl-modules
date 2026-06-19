@@ -312,9 +312,31 @@ static int max9295_set_pipe_csi_enabled(struct max9x_common *common,
 	struct max9x_desc *desc = common->des;
 	int ret;
 	int val;
+#ifdef CONFIG_VIDEO_MAX9295_VC0_REMAP
+	struct max9x_pdata *pdata = dev->platform_data;
+
+	dev_info(dev, "Video-pipe %d, csi %d: %s,%d lanes, %d subdevs, remap vc0 -> vc%u", pipe_id, csi_id,
+		(enable ? "enable" : "disable"),
+		 common->csi_link[csi_id].config.num_lanes,
+		 pdata->num_subdevs,
+		 csi_id);
+
+	// Enable vc_map for CSI port csi_id
+	TRY(ret, regmap_update_bits(map, MAX9295_MIPI_RX_0,
+			MAX9295_MIPI_RX_0_EN_CSI_VC_MAP_FIELD(csi_id),
+			MAX9X_FIELD_PREP(MAX9295_MIPI_RX_0_EN_CSI_VC_MAP_FIELD(csi_id), 1U))
+	);
+	// Select vc_map CSI port csi_id
+	TRY(ret, regmap_update_bits(map, MAX9295_MIPI_CSI_VC0_MAP,
+			MAX9295_MIPI_RX_21_SEL_CSI_VC_MAP_FIELD(csi_id),
+			MAX9X_FIELD_PREP(MAX9295_MIPI_RX_21_SEL_CSI_VC_MAP_FIELD(csi_id), pipe_id))
+	);
+#else
+
 	dev_dbg(dev, "Video-pipe %d, csi %d: %s, %d lanes", pipe_id, csi_id,
 		(enable ? "enable" : "disable"), common->csi_link[csi_id].config.num_lanes);
-
+#endif
+	
 	// Select number of lanes for CSI port csi_id
 	TRY(ret, regmap_update_bits(map, MAX9295_MIPI_RX_1,
 			MAX9295_MIPI_RX_1_SEL_CSI_LANES_FIELD(csi_id),
@@ -811,14 +833,39 @@ static int max9295_add_translate_addr(struct max9x_common *common,
 	unsigned int src;
 	int ret;
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct max9x_pdata *pdata = common->dev->platform_data;
+
+	dev_dbg(dev, "%s: num_subdevs %d", __func__,
+		pdata->num_subdevs);
+#endif
+
 	for (alias = 0; alias < MAX9295_NUM_ALIASES; alias++) {
 		TRY(ret, regmap_read_retry(map, MAX9295_I2C_SRC(i2c_id, alias), &src));
 
 		src = FIELD_GET(MAX9295_I2C_SRC_FIELD, src);
+
 		dev_dbg(dev, "SRC %02x = %02x, DST %02x = %02x",
 				MAX9295_I2C_SRC(i2c_id, alias), virt_addr,
 				MAX9295_I2C_DST(i2c_id, alias), phys_addr);
+
 		if (src == virt_addr || src == 0) {
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+			struct max9x_subdev_pdata *subdev_pdata = &pdata->subdevs[alias];
+			unsigned int subdev_phys_addr = subdev_pdata->phys_addr;
+		  
+			if ((pdata->num_subdevs > 1) && (phys_addr != subdev_phys_addr)) {
+				dev_warn(dev, "%s: ignoring subdev[%u] translation",
+					__func__,
+					alias);
+				continue;
+			}
+
+			dev_dbg(dev, "%s: matches subdev[%u].phys_addr=0x%02x translation",
+				__func__,
+				alias,
+				subdev_phys_addr);
+#endif
 			TRY(ret, regmap_write_retry(map, MAX9295_I2C_DST(i2c_id, alias),
 					      MAX9X_FIELD_PREP(MAX9295_I2C_DST_FIELD, phys_addr))
 			);
