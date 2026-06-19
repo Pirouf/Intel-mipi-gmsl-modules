@@ -247,7 +247,40 @@ static struct max9x_pdata *pdata_sensor(struct device *dev, struct max9x_subdev_
 	return NULL;
 }
 
-static struct max9x_pdata *parse_ser_pdata(struct device *dev, const char *ser_name, char *suffix,
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+static unsigned int get_alt_video_pipe(unsigned primary_pipe_id)
+
+{
+
+	switch (primary_pipe_id) {
+	case 0:
+		/* GMSL A Zed-x stereo uses Pipe X (left-sensor) and Pipe Y (right-sensor)
+		* Discard GMSL B usage
+		*/
+		return 1;
+	case 1:
+		/* GMSL B Zed-x stereo uses Pipe Y (left-sensor) and Pipe X (right-sensor)
+		* Discard GMSL A usage
+		*/
+		return 0;
+	case 2:
+		/* GMSL C Zed-x stereo uses Pipe Z (left-sensor) and Pipe U (right-sensor)
+		* Discard GMSL C usage
+		*/
+		return 3;
+	case 3:
+		/* GMSL D Zed-x stereo uses Pipe U (left-sensor) and Pipe Z (right-sensor)
+		* Discard GMSL C usage
+		*/
+		return 2;
+	default:
+		/* fallback on Pipe  */
+		return primary_pipe_id;
+	}
+}
+#endif
+
+  static struct max9x_pdata *parse_ser_pdata(struct device *dev, const char *ser_name, char *suffix,
 					   unsigned int ser_nlanes, unsigned int phys_addr,
 					   unsigned int virt_addr, struct max9x_subdev_pdata *ser_sdinfo,
 					   unsigned int sensor_dt, struct gpiod_lookup *ser_gpio)
@@ -268,6 +301,68 @@ static struct max9x_pdata *parse_ser_pdata(struct device *dev, const char *ser_n
 	ser_serial_link->rx_freq_mhz = 6000;
 	ser_serial_link->tx_freq_mhz = 187;
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	dev_dbg(dev, "%s:ser %s num_subdevs %u, serial link id %u\n", __func__,
+		ser_name,
+		ser_sdinfo->num_subdevs,
+		ser_sdinfo->serial_link_id);
+
+	ser_pdata->num_video_pipes = ser_sdinfo->num_subdevs;
+	ser_pdata->video_pipes = devm_kzalloc(dev,
+				ser_pdata->num_video_pipes * sizeof(*ser_pdata->video_pipes), GFP_KERNEL);
+
+	ser_video_pipe = &ser_pdata->video_pipes[0];
+	ser_video_pipe->serial_link_id = 0;
+	ser_video_pipe->pipe_id = ser_sdinfo->serial_link_id;
+	ser_video_pipe->src_csi_id = 1; /* PHY B typically */
+
+	ser_video_pipe->num_data_types = 1;
+	ser_video_pipe->data_types = devm_kzalloc(dev,
+				ser_video_pipe->num_data_types * sizeof(*ser_video_pipe->data_types), GFP_KERNEL);
+
+	ser_video_pipe->data_types[0] = sensor_dt;
+
+	ser_pdata->num_csi_links = ser_sdinfo->num_subdevs;
+	ser_pdata->csi_links = devm_kzalloc(dev, ser_pdata->num_csi_links * sizeof(*ser_pdata->csi_links), GFP_KERNEL);
+
+	struct max9x_csi_link_pdata *csi_link = &ser_pdata->csi_links[0];
+
+	csi_link->link_id = 1;
+	csi_link->num_lanes = ser_nlanes;
+
+	dev_dbg(dev, "%s:ser %s pipe %c, dt=0x%x to csi_id %u nlanes %u\n", __func__,
+		ser_name,
+		ser_video_pipe->pipe_id == 3 ? 'U' : 'X' + ser_video_pipe->pipe_id,
+		ser_video_pipe->data_types[0],
+		csi_link->link_id,
+		csi_link->num_lanes);
+
+	if (ser_sdinfo->num_subdevs == 1)
+		return ser_pdata;
+
+	ser_video_pipe = &ser_pdata->video_pipes[1];
+	ser_video_pipe->serial_link_id = 0;
+	ser_video_pipe->pipe_id = get_alt_video_pipe(ser_sdinfo->serial_link_id);
+	ser_video_pipe->src_csi_id = 0; // PHY A otherwise
+
+	ser_video_pipe->num_data_types = 1;
+	ser_video_pipe->data_types = devm_kzalloc(dev,
+				ser_video_pipe->num_data_types * sizeof(*ser_video_pipe->data_types), GFP_KERNEL);
+
+	ser_video_pipe->data_types[0] = sensor_dt;
+
+	csi_link = &ser_pdata->csi_links[1];
+
+	csi_link->link_id = 0;
+	csi_link->num_lanes = ser_nlanes;
+
+	dev_dbg(dev, "%s:ser %s pipe %c, dt=0x%x to csi_id %u nlanes %u\n", __func__,
+		ser_name,
+		ser_video_pipe->pipe_id == 3 ? 'U' : 'X' + ser_video_pipe->pipe_id,
+		ser_video_pipe->data_types[0],
+		csi_link->link_id,
+		csi_link->num_lanes);
+#else
 	ser_pdata->num_video_pipes = 1;
 	ser_pdata->video_pipes = devm_kzalloc(dev,
 				ser_pdata->num_video_pipes * sizeof(*ser_pdata->video_pipes), GFP_KERNEL);
@@ -289,6 +384,7 @@ static struct max9x_pdata *parse_ser_pdata(struct device *dev, const char *ser_n
 
 	csi_link->link_id = 1;
 	csi_link->num_lanes = ser_nlanes;
+#endif
 
 	return ser_pdata;
 }
@@ -297,7 +393,19 @@ static void parse_sensor_pdata(struct device *dev, const char *sensor_name, char
 			       unsigned int phys_addr, unsigned int virt_addr, struct max9x_subdev_pdata *ser_sdinfo,
 			       struct max9x_pdata *ser_pdata)
 {
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	char _suffix[5] = "";
+	snprintf(_suffix, sizeof(ser_pdata->suffix), "%s", suffix);
+
+	dev_dbg(dev, "%s:sensor %s num_subdevs %u\n", __func__,
+		sensor_name,
+		ser_sdinfo->num_subdevs);
+
+	ser_pdata->num_subdevs = ser_sdinfo->num_subdevs;
+#else
 	ser_pdata->num_subdevs = 1;
+#endif
 	ser_pdata->subdevs = devm_kzalloc(dev, ser_pdata->num_subdevs * sizeof(*ser_pdata->subdevs), GFP_KERNEL);
 	pdata_sensor(dev, &ser_pdata->subdevs[0], sensor_name, phys_addr, virt_addr);
 
@@ -319,6 +427,43 @@ static void parse_sensor_pdata(struct device *dev, const char *sensor_name, char
 	sen_pdata->lanes = ser_nlanes;
 	sen_pdata->irq_pin_flags = 1;	//workaround for identify D3.
 	snprintf(sen_pdata->suffix, sizeof(sen_pdata->suffix), "%s", suffix);
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	dev_dbg(dev, "%s:subdevs[0]=%s (%s)", __func__,
+		dev_name,
+		_suffix);
+
+	if (ser_sdinfo->num_subdevs == 1)
+		return;
+
+	/* add sensor subdev namespacing */
+	_suffix[0] = suffix[0] + 4;
+
+	pdata_sensor(dev, &ser_pdata->subdevs[1], sensor_name, phys_addr + 8, virt_addr + 8);
+
+	/* Copy GPIO configuration from serializer to sensor subdev */
+	ser_pdata->subdevs[1].gpio = ser_sdinfo->gpio;
+
+	/* NOTE: i2c_dev_set_name() will prepend "i2c-" to this name */
+	char *dev1_name = devm_kzalloc(dev, I2C_NAME_SIZE, GFP_KERNEL);
+
+	snprintf(dev1_name, I2C_NAME_SIZE, "%s %s", sensor_name, _suffix);
+	ser_pdata->subdevs[1].board_info.dev_name = dev1_name;
+
+	struct sensor_platform_data *sen1_pdata = devm_kzalloc(dev, sizeof(*sen_pdata), GFP_KERNEL);
+
+	if (!sen1_pdata)
+		return;
+
+	ser_pdata->subdevs[1].board_info.platform_data = sen1_pdata;
+	sen1_pdata->lanes = ser_nlanes;
+	sen1_pdata->irq_pin_flags = 1;	//workaround for identify D3.
+	snprintf(sen1_pdata->suffix, sizeof(sen1_pdata->suffix), "%s", _suffix);
+
+	dev_dbg(dev, "%s:subdevs[1]=%s (%s)", __func__,
+		dev1_name,
+		_suffix);
+#endif
 }
 
 static void *parse_serdes_pdata(struct device *dev)
@@ -375,7 +520,44 @@ static void *parse_serdes_pdata(struct device *dev)
 					des_video_pipe->num_maps * sizeof(*des_video_pipe->maps), GFP_KERNEL);
 
 		ser_sdinfo->serial_link_id = serial_link_id;
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		if (serdes_sdinfo->aggregated_link > 1 && serdes_sdinfo->aggregated_link <= 4) {
+			ser_sdinfo->num_subdevs = serdes_sdinfo->aggregated_link;
 
+			unsigned int alt_video_pipe_id = get_alt_video_pipe(video_pipe_id);
+			unsigned int alt_video_vc_id = alt_video_pipe_id;
+			unsigned int src_video_vc_id = 0;
+			struct max9x_video_pipe_pdata *des_alt_video_pipe = &des_pdata->video_pipes[alt_video_pipe_id];
+
+			des_alt_video_pipe->serial_link_id = serial_link_id;
+			des_alt_video_pipe->pipe_id = alt_video_pipe_id;
+			des_alt_video_pipe->src_pipe_id = alt_video_pipe_id;
+			des_alt_video_pipe->num_maps = 3;
+			des_alt_video_pipe->maps = devm_kzalloc(dev,
+							    des_alt_video_pipe->num_maps * sizeof(*des_alt_video_pipe->maps), GFP_KERNEL);
+
+#ifdef CONFIG_VIDEO_MAX9295_VC0_REMAP
+			src_video_vc_id = 1; // max9295 vc_remap VC0 -> VC1
+#endif
+			dev_info(dev, "%s: assigned DESERIALIZER alternative pipe %c (dt/vc src:0x%x/0x%x to dst:0x%x/0x%x)",
+				__func__,
+				 des_alt_video_pipe->src_pipe_id  == 3 ? 'U' : 'X' + des_alt_video_pipe->src_pipe_id,
+				 dt, src_video_vc_id,
+				 dt, alt_video_vc_id);
+
+			SET_CSI_MAP(des_alt_video_pipe->maps, 0, src_video_vc_id, 0x00, alt_video_vc_id, 0x00, csi_port);
+			SET_CSI_MAP(des_alt_video_pipe->maps, 1, src_video_vc_id, 0x01, alt_video_vc_id, 0x01, csi_port);
+			SET_CSI_MAP(des_alt_video_pipe->maps, 2, src_video_vc_id, dt, alt_video_vc_id, dt, csi_port); /* YUV422 8-bit */
+
+		} else
+			ser_sdinfo->num_subdevs = 1;
+
+		dev_info(dev, "%s: assigned DESERIALIZER pipe %c (dt/vc src:0x%x/0x%x to dst:0x%x/0x%x)",
+			 __func__,
+			 des_video_pipe->src_pipe_id  == 3 ? 'U' : 'X' + des_video_pipe->src_pipe_id,
+			 dt, 0,
+			 dt, video_pipe_id);
+#endif
 		SET_CSI_MAP(des_video_pipe->maps, 0, 0, 0x00, video_pipe_id, 0x00, csi_port);
 		SET_CSI_MAP(des_video_pipe->maps, 1, 0, 0x01, video_pipe_id, 0x01, csi_port);
 		SET_CSI_MAP(des_video_pipe->maps, 2, 0, dt, video_pipe_id, dt, csi_port); /* YUV422 8-bit */
@@ -1640,11 +1822,37 @@ static int max9x_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 			source_desc_entry->pixelcode;
 		desc->entry[desc->num_entries].length =
 			source_desc_entry->length;
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		if ( source_desc.num_entries > 1 &&
+		     ( route->source_stream == 1 ||
+		       route->source_stream == 3 ||
+		       route->source_stream == 5 ||
+		       route->source_stream == 7) &&
+		    common->type == MAX9X_DESERIALIZER) {
+			// des vc_map=0,1,2,3 alternative des vc_map=1,0,3,2
+			desc->entry[desc->num_entries].bus.csi2.vc =
+			  get_alt_video_pipe(route->sink_pad - common->num_csi_links);
+		} else if (common->type == MAX9X_DESERIALIZER) {
+			desc->entry[desc->num_entries].bus.csi2.vc =
+			  route->sink_pad - common->num_csi_links;
+		} else if (desc->num_entries > 1 &&
+			   common->type == MAX9X_SERIALIZER) {
+			desc->entry[desc->num_entries].bus.csi2.vc =
+				source_desc_entry->bus.csi2.vc;
+		}
+		dev_dbg(common->dev, "%s: %s num_src_desc=%u, sink pad %u, dt/vc src:0x%x/0x%x\n", __func__,
+			common->type == MAX9X_DESERIALIZER ? "DESERIALIZER": "SERIALIZER",
+                        source_desc.num_entries,
+			route->sink_pad,
+			source_desc_entry->bus.csi2.dt,
+			source_desc_entry->bus.csi2.vc);
+#else
 		if (common->type == MAX9X_DESERIALIZER)
 			desc->entry[desc->num_entries].bus.csi2.vc =
 				route->sink_pad - common->num_csi_links;
+#endif
 		desc->entry[desc->num_entries].bus.csi2.dt =
-			source_desc_entry->bus.csi2.dt;
+		  source_desc_entry->bus.csi2.dt;
 		desc->num_entries++;
 	}
 
@@ -1830,8 +2038,18 @@ static int max9x_registered(struct v4l2_subdev *sd)
 		} else {
 			struct max9x_pdata *pdata = dev->platform_data;
 
+			dev_dbg(dev, "%s: ser %s (num_subdevs=%u) ...",__func__,
+				pdata->suffix, pdata->num_subdevs);
+
 			for (unsigned int i = 0; i < pdata->num_subdevs; i++) {
 				struct max9x_subdev_pdata *subdev_pdata = &pdata->subdevs[i];
+
+				dev_dbg(dev, "%s: check subdevs[%u]=%s (phys=0x%x) to ser link id %u/%u...",
+					__func__, i,
+					subdev_pdata->board_info.dev_name,
+					subdev_pdata->phys_addr,
+					subdev_pdata->serial_link_id,
+					common->num_serial_links);
 
 				if (subdev_pdata->serial_link_id == link_id) {
 					char dev_id[I2C_NAME_SIZE];
@@ -1850,43 +2068,47 @@ static int max9x_registered(struct v4l2_subdev *sd)
 					};
 
 					int line = 0;
-					for (int i = 0; i < MAX_SER_GPIO_NUM; i++) {
-						if (subdev_pdata->gpio && subdev_pdata->gpio[i].con_id != NULL) {
-							sensor_gpios.table[line] = subdev_pdata->gpio[i];
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+					unsigned int subdev_idx = i;
+					unsigned int num_reset = 0;
+#endif
+					for (int j = 0; j < MAX_SER_GPIO_NUM; j++) {
+					  
+						if (subdev_pdata->gpio && subdev_pdata->gpio[j].con_id != NULL) {
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+							dev_dbg(dev, "%s: Count %s=%u line %u (subdev_idx[%u])",
+								__func__,
+								subdev_pdata->gpio[j].con_id,
+								num_reset,
+								j,
+								subdev_idx);
+
+							// ignore this MFP don't get associated with each subdev
+							if (!strcmp(subdev_pdata->gpio[j].con_id, "ignore"))
+								continue;
+
+							// Each RESET MFPs gets associated with each subdev
+							if (!strcmp(subdev_pdata->gpio[j].con_id, "reset")) {
+								if ( num_reset == subdev_idx ) {
+									sensor_gpios.table[line] = subdev_pdata->gpio[j];
+									sensor_gpios.table[line++].key = common->gpio_chip.label;
+									dev_dbg(dev, " Adding line %d as %s (%s)",
+										j,
+										subdev_pdata->gpio[j].con_id,
+										subdev_pdata->board_info.dev_name);
+								}
+								num_reset++;
+								continue;
+							}
+							// other MFPs gets associated normally
+#endif
+
+							sensor_gpios.table[line] = subdev_pdata->gpio[j];
 							sensor_gpios.table[line++].key = common->gpio_chip.label;
-							dev_dbg(dev, " Adding line %d as %s", i, subdev_pdata->gpio[i].con_id);
+							dev_dbg(dev, " Adding line %d as %s", j, subdev_pdata->gpio[j].con_id);
 						}
 					}
 					sensor_gpios.dev_id = dev_id;
-
-					// HACK: Just make ar0234 work
-					if (!strcmp(subdev_pdata->board_info.type, "ar0234")) {
-						// ZED-X-ONE-GS set GPIO0 push-pull and select pull-down
-						dev_dbg(dev, "serializer GPIO0 pull-down %s sensor RESET_BAR signal toggled (%s)...",
-							subdev_pdata->board_info.type,
-							dev_id);
-						regmap_write(common->map, 0x2BF, 0x60);
-						regmap_write(common->map, 0x2BE, 0x80);
-						usleep_range(10000, 10000);
-						regmap_write(common->map, 0x2BE, 0x90);
-						//Needs to sleep for quite a while before register writes
-						usleep_range(200 * 1000, 200 * 1000 + 500);
-
-						// ZED-X set GPIO7/8 push-pull and select pull-down
-						dev_dbg(dev, "serializer GPIO7/8 pull-down %s sensor RESET_BAR signal toggled (%s)...",
-							subdev_pdata->board_info.type,
-							dev_id);
-						regmap_write(common->map, 0x2D4, 0x60);
-						regmap_write(common->map, 0x2D3, 0x80);
-						usleep_range(10000, 10000);
-						regmap_write(common->map, 0x2D3, 0x90);
-						regmap_write(common->map, 0x2D7, 0x60);
-						regmap_write(common->map, 0x2D6, 0x80);
-						usleep_range(10000, 10000);
-						regmap_write(common->map, 0x2D6, 0x90);
-						//Needs to sleep for quite a while before register writes
-						usleep_range(200 * 1000, 200 * 1000 + 500);
-					}
 
 					gpiod_add_lookup_table(&sensor_gpios);
 
@@ -1918,11 +2140,19 @@ static int max9x_registered(struct v4l2_subdev *sd)
 					int remote_pad = media_get_pad_index(&subdev->entity,
 									     MEDIA_PAD_FL_SOURCE,
 									     PAD_SIGNAL_DEFAULT);
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+					int local_pad = max9x_csi_link_to_pad(common, i);
+
+					dev_dbg(dev, "Create link from sen pad %d -> ser csi link %u (pad %d)",
+						remote_pad, i,
+						local_pad);
+#else
 					int local_pad = max9x_csi_link_to_pad(common, 0);
 
 					dev_dbg(dev, "Create link from sen pad %d -> ser link %d (pad %d)",
 						remote_pad, link_id,
 						local_pad);
+#endif
 
 					ret = media_create_pad_link(&subdev->entity, remote_pad,
 								    &sd->entity, local_pad,
@@ -2335,6 +2565,9 @@ static int max9x_parse_serial_link_pdata(struct max9x_common *common,
 		return -EINVAL;
 	}
 
+	dev_dbg(dev, "%s: Serial link id %u",__func__,
+		serial_link_id);
+
 	struct max9x_serdes_serial_link *serial_link = &common->serial_link[serial_link_id];
 
 	serial_link->enabled = true;
@@ -2375,6 +2608,17 @@ static int max9x_parse_video_pipe_pdata(struct max9x_common *common,
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct max9x_pdata *des_pdata = dev->platform_data;
+	struct max9x_subdev_pdata *ser_sdinfo = &des_pdata->subdevs[serial_link_id];
+	unsigned int aggregated_serial_link_id = serial_link_id;
+	if ((ser_sdinfo->num_subdevs > 1) &&
+	    (common->type == MAX9X_DESERIALIZER) &&
+	    (serial_link_id == 3))
+		// force serial link 1 & 2 to be the primary aggregrated port
+		aggregated_serial_link_id = 2;
+#endif
+
 	struct max9x_serdes_video_pipe *pipe = &common->video_pipe[pipe_id];
 
 	pipe->enabled = true;
@@ -2400,8 +2644,25 @@ static int max9x_parse_video_pipe_pdata(struct max9x_common *common,
 			return -ENOMEM;
 		}
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		dev_dbg(dev, "%s: num_subdevs=%u, serial link id %u and alternative link id %u",
+			__func__,
+			ser_sdinfo->num_subdevs,
+			serial_link_id,
+			aggregated_serial_link_id);
+
+		if (aggregated_serial_link_id != video_pipe_pdata->serial_link_id)
+			pipe->config.src_link = aggregated_serial_link_id;
+		else
+#endif
 		pipe->config.src_link = video_pipe_pdata->serial_link_id;
+
 		pipe->config.src_pipe = video_pipe_pdata->src_pipe_id;
+
+		dev_dbg(dev, "%s: set DESERIALIZER serial link %u, pipe %c",
+			__func__,
+			pipe->config.src_link,
+			pipe->config.src_pipe == 3 ? 'U' : 'X' + pipe->config.src_pipe);
 
 		for (unsigned int i = 0; i < video_pipe_pdata->num_maps; i++) {
 			struct max9x_serdes_mipi_map *map = &pipe->config.map[i];
@@ -2430,6 +2691,11 @@ static int max9x_parse_video_pipe_pdata(struct max9x_common *common,
 
 		pipe->config.src_csi = video_pipe_pdata->src_csi_id;
 
+		dev_dbg(dev, "%s: set SERIALIZER csi link %u, pipe %c",
+			__func__,
+			pipe->config.src_csi,
+			pipe_id == 3 ? 'U' : 'X' + video_pipe_pdata->pipe_id);
+
 		for (unsigned int i = 0; i < video_pipe_pdata->num_data_types; i++) {
 			pipe->config.data_type[i] = video_pipe_pdata->data_types[i];
 		}
@@ -2448,6 +2714,9 @@ static int max9x_parse_csi_link_pdata(struct max9x_common *common,
 		dev_err(common->dev, "CSI link pdata: Invalid link id");
 		return -EINVAL;
 	}
+
+	dev_dbg(common->dev, "%s: CSI link id %u",__func__,
+		csi_link_id);
 
 	struct max9x_serdes_csi_link *csi_link = &common->csi_link[csi_link_id];
 
@@ -2487,6 +2756,9 @@ static int max9x_parse_subdev_pdata(struct max9x_common *common,
 {
 	unsigned int serial_link_id = subdev_pdata->serial_link_id;
 	struct max9x_serdes_serial_link *serial_link = &common->serial_link[serial_link_id];
+
+	dev_dbg(common->dev, "%s: Serial link id %u",__func__,
+		serial_link_id);
 
 	if (!serial_link->enabled)
 		return 0;
@@ -2647,6 +2919,9 @@ int max9x_setup_translations(struct max9x_common *common)
 
 	struct max9x_pdata *pdata = common->dev->platform_data;
 
+	dev_dbg(common->dev, "%s: num_subdevs %d", __func__,
+		pdata->num_subdevs);
+
 	for (unsigned int i = 0; i < pdata->num_subdevs; i++) {
 		struct max9x_subdev_pdata *subdev_pdata = &pdata->subdevs[i];
 		unsigned int virt_addr = subdev_pdata->board_info.addr;
@@ -2660,7 +2935,14 @@ int max9x_setup_translations(struct max9x_common *common)
 		if (err)
 			dev_warn(common->dev, "Failed to add translation for i2c address 0x%02x -> 0x%02x: %d",
 				 virt_addr, phys_addr, err);
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		dev_dbg(common->dev, "%s: subdev[%u] phys_addr=0x%02x, virt_addr=0x%02x",
+			__func__, i, phys_addr, virt_addr);
+#else
+		
 		break;
+#endif
 	}
 
 	return err;
