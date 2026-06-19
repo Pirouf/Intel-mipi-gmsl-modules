@@ -122,8 +122,18 @@ enum max9295_gpio_pull_updn_sel {
 #define MAX9295_SOFT_BPP_FIELD GENMASK(4, 0)
 
 #define MAX9295_MIPI_RX (0x330)
+#define MAX9295_MIPI_RX_0 (MAX9295_MIPI_RX)
+#define MAX9295_MIPI_RX_0_EN_CSI_VC_MAP_FIELD(csi_id) (BIT(4) << (csi_id))
 #define MAX9295_MIPI_RX_1 (MAX9295_MIPI_RX + 1)
 #define MAX9295_MIPI_RX_1_SEL_CSI_LANES_FIELD(csi_id) (GENMASK(1, 0) << (csi_id * 4))
+
+// VC_MAP CSI
+#define MAX9295_MIPI_RX_21 (0x345)
+#define MAX9295_MIPI_CSI_VC0_MAP (MAX9295_MIPI_RX_21)
+#define MAX9295_MIPI_CSI_VC1_MAP (MAX9295_MIPI_CSI_VC0_MAP + 1)
+#define MAX9295_MIPI_CSI_VC2_MAP (MAX9295_MIPI_CSI_VC0_MAP + 2)
+#define MAX9295_MIPI_CSI_VC3_MAP (MAX9295_MIPI_CSI_VC0_MAP + 3)
+#define MAX9295_MIPI_RX_21_SEL_CSI_VC_MAP_FIELD(csi_id) (GENMASK(1, 0) << (csi_id * 4))
 
 // I2C SRC/DST
 #define MAX9295_I2C_SRC(i2c_id, n) ((i2c_id == 0 ? 0x42 : (0x550 + (4 * ((i2c_id) - 1)))) + (2 * (n)) + 0)
