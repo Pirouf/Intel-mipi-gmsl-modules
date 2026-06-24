@@ -949,9 +949,36 @@ static int ar0234_get_frame_desc(struct v4l2_subdev *sd,
         unsigned int pad, struct v4l2_mbus_frame_desc *desc)
 {
         struct ar0234 *ar0234 = to_ar0234(sd);
-
+	
         desc->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
         desc->num_entries = 0;
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	if (!strncmp(sd->name, "ar0234 e", 8) ||
+	    !strncmp(sd->name, "ar0234 f", 8) ||
+	    !strncmp(sd->name, "ar0234 g", 8) ||
+	    !strncmp(sd->name, "ar0234 h", 8)) {
+
+		desc->entry[desc->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
+		desc->entry[desc->num_entries].stream = 1;
+		desc->entry[desc->num_entries].pixelcode = ar0234->cur_mode->code;
+		desc->entry[desc->num_entries].length = 0;
+#ifdef CONFIG_VIDEO_MAX9295_VC0_REMAP
+		desc->entry[desc->num_entries].bus.csi2.vc = 1;
+#else
+		desc->entry[desc->num_entries].bus.csi2.vc = 0;
+#endif
+		desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
+
+		dev_dbg(&client->dev, "%s: set %s csi dt/vc=0x%x/0x%x",__func__,
+			sd->name,
+			desc->entry[desc->num_entries].bus.csi2.dt,
+			desc->entry[desc->num_entries].bus.csi2.vc);
+
+		desc->num_entries++;
+	} else {
+#endif
 		desc->entry[desc->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
 		desc->entry[desc->num_entries].stream = 0;
 		desc->entry[desc->num_entries].pixelcode = ar0234->cur_mode->code;
@@ -959,6 +986,9 @@ static int ar0234_get_frame_desc(struct v4l2_subdev *sd,
 		desc->entry[desc->num_entries].bus.csi2.vc = 0;
 		desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
 		desc->num_entries++;
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	}
+#endif
         return 0;
 }
 #else
