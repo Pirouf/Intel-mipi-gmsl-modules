@@ -665,7 +665,7 @@ static int max9295_set_local_control_channel_enabled(struct max9x_common *common
 	struct device *dev = common->dev;
 	struct regmap *map = common->map;
 
-	dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
+	//dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
 
 	return regmap_update_bits_retry(map, MAX9295_PHY_REM_CTRL, MAX9295_PHY_LOCAL_CTRL_DIS_FIELD,
 				  MAX9X_FIELD_PREP(MAX9295_PHY_LOCAL_CTRL_DIS_FIELD,  (enabled ? 0U : 1U)));
