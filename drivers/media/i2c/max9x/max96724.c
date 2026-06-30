@@ -896,7 +896,7 @@ static int max96724_set_remote_control_channel_enabled(struct max9x_common *comm
 
 	// Note that the register value 1 *disables* port-to-remote command & control
 	mutex_lock(lock);
-	dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
+	//dev_dbg(dev, "set rem cc %s", (enabled ? "enable" : "disable"));
 	if (enabled) {
 		ret = regmap_write(map, MAX96724_REM_CC,
 			~(MAX9X_FIELD_PREP(MAX96724_REM_CC_DIS_PORT_FIELD(link_id, 0), enabled ? 1 : 0)));
