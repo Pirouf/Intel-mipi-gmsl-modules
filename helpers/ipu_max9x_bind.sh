@@ -159,6 +159,7 @@ fi
 # Find IPU PCI device gen name
 cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 [[ -z "${cap_prefix}" ]] && exit 0
+cap_prefix_lower=$(echo "${cap_prefix}" | tr '[:upper:]' '[:lower:]')
 
 out() {
   [[ $quiet -eq 0 ]] && echo -n "${@}    " >&2
@@ -178,6 +179,8 @@ ser_suffix="a"
 sen_suffix="a"
 streamid=0
 ser_streamid=0
+initPsys=0
+initPsysDone=0
 # loop over all available IMX390/ISX031/AR0234 max9x, each one represent physically connected camera.
 for camera in $mux_list; do
 	e="$(sen_node ${camera})" 
@@ -254,16 +257,29 @@ for camera in $mux_list; do
 	# set default v4l2 fmt value
 if [ ${sensor} = "isx031" ]; then
 	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1920,height=1536,pixelformat=UYVY
+	initPsys=0
 elif [ ${sensor} = "imx390" ]; then
 	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1920,height=1200,pixelformat=BA12
+	initPsys=1
 elif [ ${sensor} = "ar0234" ]; then
 	out ${v4l2_util} -d ${dev_ln} --set-fmt-video=width=1280,height=960,pixelformat=BA10
+	initPsys=1
 fi
 	# disable ipu link enumeration feature, if exists
 	[[ -e "$(${v4l2_util} -d $dev_ln -L | grep enumerate_graph_link)" ]] && out ${v4l2_util} -d $dev_ln -c enumerate_graph_link=0
 
 	# change group
 	out chown root:video $cap_dev
+
+if [[ $initPsysDone -eq 0 && $initPsys -ne 0 ]]; then
+	out modprobe intel-${cap_prefix_lower}-psys
+	out mkdir -p /run/camera/
+	out chown root:video /run/camera
+	out chmod 666 /run/camera
+	out chown root:video /dev/${cap_prefix_lower}-psys0
+	out chmod 666 /dev/${cap_prefix_lower}-psys0
+	initPsysDone=1
+fi
 
 	# WA: must repeat all the v4l2 set-fmt on Intel IPU7 CSI2 2 v4l2 subdev pad 0
 	if [ $streamid -gt 0 ]; then
