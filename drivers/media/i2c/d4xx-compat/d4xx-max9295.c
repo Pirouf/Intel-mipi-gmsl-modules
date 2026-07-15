@@ -687,7 +687,8 @@ EXPORT_SYMBOL(max9295_sdev_unpair);
 static  struct regmap_config max9295_regmap_config = {
 	.reg_bits = 16,
 	.val_bits = 8,
-	.cache_type = REGCACHE_RBTREE,
+	/* As this driver remaps i2c addresses, the cache is unreliable */
+	.cache_type = REGCACHE_NONE,
 };
 
 struct reg_pair {
