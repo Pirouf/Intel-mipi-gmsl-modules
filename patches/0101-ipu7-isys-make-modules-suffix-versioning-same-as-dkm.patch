@@ -1,7 +1,7 @@
-From b12a8f1ec6a84d5e3232144703c5d797399894d9 Mon Sep 17 00:00:00 2001
+From b4f1af2b1593e7610b8b881b04e294bb8ecf2e9c Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Sat, 17 Jan 2026 02:10:39 -0700
-Subject: [PATCH 101/105] ipu7-isys: make modules suffix versioning same as
+Subject: [PATCH 101/106] ipu7-isys: make modules suffix versioning same as
  dkms
 
 Signed-off-by: Florent Pirou <florent.pirou@intel.com>
@@ -13,7 +13,7 @@ Signed-off-by: Florent Pirou <florent.pirou@intel.com>
  4 files changed, 15 insertions(+)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile b/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
-index 5041701..a862e2c 100644
+index 5041701..a5266b0 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
 @@ -1,5 +1,15 @@
@@ -21,7 +21,7 @@ index 5041701..a862e2c 100644
  # Copyright (c) 2017 - 2025 Intel Corporation.
 +KERNEL_VERSION := $(shell echo $(KERNELRELEASE) | sed 's/[^0-9.]*\([0-9]\.[0-9]*\)\..*/\1.0/')
 +
-+CC := ${CC} -I ${M}/include -I ${M}/$(KERNEL_VERSION)/include-overrides -DCONFIG_DEBUG_FS -DCONFIG_INTEL_IPU_ACPI -DCONFIG_VIDEO_INTEL_IPU7_ISYS_RESET -DCONFIG_VIDEO_INTEL_IPU7_EXT_CTRLS
++CC := ${CC} -I ${M}/include -I ${M}/$(KERNEL_VERSION)/include-overrides
 +
 +KBUILD_EXTRA_SYMBOLS += ${M}/Module.symvers
 +
