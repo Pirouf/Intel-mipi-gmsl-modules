@@ -3021,7 +3021,8 @@ static int max96724_parse_pdata(struct max96724 *priv,
 static struct regmap_config max96724_regmap_config = {
 	.reg_bits = 16,
 	.val_bits = 8,
-	.cache_type = REGCACHE_RBTREE,
+	/* As this driver remaps i2c addresses, the cache is unreliable */
+	.cache_type = REGCACHE_NONE,
 };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
