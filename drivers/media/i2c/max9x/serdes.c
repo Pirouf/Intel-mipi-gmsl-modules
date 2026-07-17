@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/pm.h>
 #include <linux/of_gpio.h>
+#include <linux/bitfield.h>
 
 #include "serdes.h"
 #include "regmap-retry.h"
