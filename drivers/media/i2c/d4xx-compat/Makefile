@@ -3,7 +3,8 @@
 
 KERNEL_VERSION := $(shell echo $(KERNELRELEASE) | cut -d- -f1 | sed -r 's/([0-9]+\.[0-9]+).*/\1.0/g')
 
-ccflags-y += -I$(src)/../../../$(KERNEL_VERSION)/include-overrides
+CC := ${CC} -I${M}/$(KERNEL_VERSION)/include -I${M}/include
+
 ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DCONFIG_SYSFS  -DPLATFORM_AXIOMTEK
 
 obj-$(CONFIG_VIDEO_D4XX_MAX9295) += d4xx-max9295.o
