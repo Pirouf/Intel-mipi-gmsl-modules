@@ -1,0 +1,62 @@
+From cc12439735fa0953f49abea7ef6f402d7ea1fb89 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 17 Jul 2026 05:33:53 -0700
+Subject: [PATCH 59/59] ipu6-isys : update v4l2_get_link_freq api changes
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ .../media/pci/intel/ipu6/ipu6-isys-csi2.c     | 31 +++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-csi2.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-csi2.c
+index f4d024e..1cc7b03 100644
+--- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-csi2.c
++++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-csi2.c
+@@ -81,6 +81,36 @@ static const struct ipu6_csi2_error dphy_rx_errors[] = {
+ 	{ "HSIDLE detected", false }
+ };
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
++s64 ipu6_isys_csi2_get_link_freq(struct ipu6_isys_csi2 *csi2)
++{
++	struct media_pad *src_pad;
++	struct v4l2_subdev_state *s_state;
++	struct v4l2_subdev *s_sd;
++	int ret = -EPIPE;
++
++	s_state = v4l2_subdev_get_unlocked_active_state(&csi2->asd.sd);
++	if (!s_state)
++		return ret;
++
++	src_pad = media_pad_remote_pad_first(&csi2->asd.sd.entity.pads[CSI2_PAD_SINK]);
++	if (!src_pad) {
++		dev_err(&csi2->isys->adev->auxdev.dev,
++			"can't get source pad of %s\n",
++			csi2->asd.sd.name);
++		return -EINVAL;
++	}
++
++	s_sd = media_entity_to_v4l2_subdev(src_pad->entity);
++
++	dev_dbg(&csi2->isys->adev->auxdev.dev,
++		"%s:%u ->  %s:%u\n",
++		csi2->asd.sd.name, CSI2_PAD_SINK,
++		s_sd->name, src_pad->index);
++
++	return v4l2_get_link_freq(src_pad, 0, 0);
++}
++#else
+ s64 ipu6_isys_csi2_get_link_freq(struct ipu6_isys_csi2 *csi2)
+ {
+ 	struct media_pad *src_pad;
+@@ -116,6 +146,7 @@ s64 ipu6_isys_csi2_get_link_freq(struct ipu6_isys_csi2 *csi2)
+ 
+ 	return v4l2_get_link_freq(ext_sd->ctrl_handler, 0, 0);
+ }
++#endif
+ 
+ static int csi2_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
+ 				struct v4l2_event_subscription *sub)
+-- 
+2.43.0
+

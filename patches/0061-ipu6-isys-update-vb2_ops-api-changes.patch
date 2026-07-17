@@ -1,0 +1,28 @@
+From 2417f932684d9ed90a1b39962775de6dc84c73a9 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 17 Jul 2026 06:06:50 -0700
+Subject: [PATCH 61/61] ipu6-isys : update vb2_ops api changes
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-queue.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-queue.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-queue.c
+index 60346a6..26c47b7 100644
+--- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-queue.c
++++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-queue.c
+@@ -1056,8 +1056,10 @@ void ipu6_isys_queue_buf_ready(struct ipu6_isys_stream *stream,
+ 
+ static const struct vb2_ops ipu6_isys_queue_ops = {
+ 	.queue_setup = ipu6_isys_queue_setup,
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(6, 17, 255)
+ 	.wait_prepare = vb2_ops_wait_prepare,
+ 	.wait_finish = vb2_ops_wait_finish,
++#endif
+ 	.buf_init = ipu6_isys_buf_init,
+ 	.buf_prepare = ipu6_isys_buf_prepare,
+ 	.buf_cleanup = ipu6_isys_buf_cleanup,
+-- 
+2.43.0
+

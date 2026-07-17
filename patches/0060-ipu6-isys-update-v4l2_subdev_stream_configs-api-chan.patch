@@ -1,0 +1,52 @@
+From 04a495bca1bb9d8395d38a5238f6d26a9c3b664c Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 17 Jul 2026 05:57:54 -0700
+Subject: [PATCH 60/60] ipu6-isys : update v4l2_subdev_stream_configs api
+ changes
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ .../drivers/media/pci/intel/ipu6/ipu6-isys-video.c  | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-video.c b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-video.c
+index c4e39a6..d7a71a5 100644
+--- a/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-video.c
++++ b/ipu6-drivers/drivers/media/pci/intel/ipu6/ipu6-isys-video.c
+@@ -1403,13 +1403,25 @@ static u32 get_remote_pad_stream(struct media_pad *r_pad)
+ 	struct v4l2_subdev_state *state;
+ 	struct v4l2_subdev *sd;
+ 	u32 stream_id = 0;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
++	struct v4l2_subdev_route *route;
++#else
+ 	unsigned int i;
++#endif
+ 
+ 	sd = media_entity_to_v4l2_subdev(r_pad->entity);
+ 	state = v4l2_subdev_lock_and_get_active_state(sd);
+ 	if (!state)
+ 		return 0;
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
++	for_each_active_route(&state->routing, route) {
++		if (route->source_pad == r_pad->index) {
++			stream_id = route->source_stream;
++			break;
++		}
++	}
++#else
+ 	for (i = 0; i < state->stream_configs.num_configs; i++) {
+ 		struct v4l2_subdev_stream_config *cfg =
+ 			&state->stream_configs.configs[i];
+@@ -1418,6 +1430,7 @@ static u32 get_remote_pad_stream(struct media_pad *r_pad)
+ 			break;
+ 		}
+ 	}
++#endif
+ 
+ 	v4l2_subdev_unlock_state(state);
+ 
+-- 
+2.43.0
+
