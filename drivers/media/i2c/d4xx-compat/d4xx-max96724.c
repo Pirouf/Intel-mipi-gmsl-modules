@@ -18,6 +18,7 @@
 #include <linux/regmap.h>
 #include <media/i2c/d4xx-max96724.h>
 #include <linux/bitops.h>
+#include <linux/bitfield.h>
 
 
 /* MAX96724 register specifics */
