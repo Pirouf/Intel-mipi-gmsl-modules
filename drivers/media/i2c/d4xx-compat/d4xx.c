@@ -554,6 +554,33 @@ struct ds5 {
 	int pad_to_vc[DS5_MUX_PAD_COUNT];
 	int pad_to_substream[NR_OF_CSI2_BE_SOC_STREAMS];
 	struct mutex mutex;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+/**
+ * struct v4l2_subdev_stream_config - Used for storing stream configuration.
+ *
+ * @pad: pad number
+ * @stream: stream number
+ * @enabled: has the stream been enabled with v4l2_subdev_enable_streams()
+ * @fmt: &struct v4l2_mbus_framefmt
+ * @crop: &struct v4l2_rect to be used for crop
+ * @compose: &struct v4l2_rect to be used for compose
+ * @interval: frame interval
+ *
+ * This structure stores configuration for a stream.
+ */
+struct v4l2_subdev_stream_config {
+	u32 pad;
+	u32 stream;
+	bool enabled;
+
+	struct v4l2_mbus_framefmt fmt;
+	struct v4l2_rect crop;
+	struct v4l2_rect compose;
+	struct v4l2_fract interval;
+};
+#endif
+
 #endif
 };
 
