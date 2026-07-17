@@ -29,6 +29,7 @@
 #include <linux/regmap.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
+#include <linux/bitfield.h>
 
 #include "max96717.h"
 

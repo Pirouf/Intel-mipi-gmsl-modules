@@ -28,6 +28,7 @@
 #include <linux/regmap.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
+#include <linux/bitfield.h>
 
 #include "max96724.h"
 #include "regmap-retry.h"
