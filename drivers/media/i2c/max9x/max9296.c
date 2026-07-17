@@ -27,6 +27,7 @@
 #include <linux/pm.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/bitfield.h>
 
 #include "max9296.h"
 
