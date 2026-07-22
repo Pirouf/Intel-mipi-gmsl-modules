@@ -3138,7 +3138,7 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		__func__, ds5_get_sensor_name(state), ctrl->name);
 
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-	//ret = max96724_switch_link_channel(state->dser_dev);
+	ret = max96724_switch_link_channel(state->dser_dev);
 #endif
 
 	switch (ctrl->id) {
@@ -3351,6 +3351,7 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 #endif
 	}
+
 	return ret;
 }
 
@@ -7723,7 +7724,7 @@ static void ds5_remove(struct i2c_client *c)
 			mutex_lock(&serdes_lock__);
 
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-			//ret = max96724_switch_link_channel(state->dser_dev);
+			ret = max96724_switch_link_channel(state->dser_dev);
 			ret = max9295_reset_control(state->ser_dev);
 			if (ret)
 				dev_warn(&c->dev,
