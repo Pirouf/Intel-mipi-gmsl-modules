@@ -88,10 +88,16 @@ out() {
   [[ $quiet -eq 0 ]] && echo "        RET=$?" >&2
 }
 
+# Find IPU media device.
 # For case with usb camera plugged in during the boot,
 # usb media controller will occupy index 0
-mdev=$(${v4l2_util} --list-devices | grep -A100 ipu | grep media | head -n 1)
-[[ -z "${mdev}" ]] && exit 0
+mdev=/dev/media0
+${v4l2_util} --list-devices | awk '/ipu/ { in_ipu=1; next } /^[^[:space:]]/ && in_ipu { exit } in_ipu && /media/ { print }' | while read -r ipu_mdev; do
+    echo "$ipu_mdev";
+    [[ -z "$ipu_mdev" ]] && exit 0
+    mdev=$ipu_mdev
+done
+
 # Find IPU PCI device gen name
 cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 [[ -z "${cap_prefix}" ]] && exit 0

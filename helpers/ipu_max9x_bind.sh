@@ -126,11 +126,15 @@ declare -A media_mux_capture_pad=(
 # muxes suffix 0, 1, 2, 3, 4, 5 is referes to csi2 mipi port mapping
 mux_list=${mux_param:-'a-0 b-0 c-0 d-0 a-1 b-1 c-1 d-1 a-2 b-2 c-2 d-2 a-3 b-3 c-3 d-3 a-4 b-4 c-4 d-4 a-5 b-5 c-5 d-5'}
 
-# Find media device.
+# Find IPU media device.
 # For case with usb camera plugged in during the boot,
 # usb media controller will occupy index 0
-mdev=$(${v4l2_util} --list-devices | grep -A100 ipu | grep media | head -n 1)
-[[ -z "${mdev}" ]] && exit 0
+mdev=/dev/media0
+${v4l2_util} --list-devices | awk '/ipu/ { in_ipu=1; next } /^[^[:space:]]/ && in_ipu { exit } in_ipu && /media/ { print }' | while read -r ipu_mdev; do
+    echo "$ipu_mdev";
+    [[ -z "$ipu_mdev" ]] && exit 0
+    mdev=$ipu_mdev
+done
 
 # IPU7/IPU6 ISYS Capture devices can bind to either on IPU7/IPU6 ISYS CSI subdev 1-16 or 1-8 srcpads
 mdev_capdev_count=$(${v4l2_util} -d ${mdev} -A | wc -l)

@@ -85,7 +85,11 @@ declare -A camera_names=( [depth]=depth [rgb]=color [ir]=ir [imu]=imu )
 camera_vid=("depth" "depth-md" "color" "color-md" "ir" "ir-md" "imu")
 
 #IPU6 or IPU7 ISYS
-mdev=$(${v4l2_util} --list-devices | grep -A100 ipu | grep media)
+mdev=/dev/media0
+${v4l2_util} --list-devices | awk '/ipu/ { in_ipu=1; next } /^[^[:space:]]/ && in_ipu { exit } in_ipu && /media/ { print }' | while read -r ipu_mdev; do
+    [[ -z "$ipu_mdev" ]] && exit 0
+    mdev=$ipu_mdev
+done
 cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 
 if [ -n "${mdev}" ]; then
