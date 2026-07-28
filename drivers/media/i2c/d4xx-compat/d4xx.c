@@ -554,6 +554,8 @@ struct ds5 {
 	int pad_to_vc[DS5_MUX_PAD_COUNT];
 	int pad_to_substream[NR_OF_CSI2_BE_SOC_STREAMS];
 	struct mutex mutex;
+#endif
+};
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 /**
@@ -581,8 +583,10 @@ struct v4l2_subdev_stream_config {
 };
 #endif
 
+
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+static DEFINE_MUTEX(serdes_lock__);
 #endif
-};
 
 struct ds5_counters {
 	unsigned int n_res;
@@ -718,10 +722,18 @@ static int ds5_write(struct ds5 *state, u16 reg, u16 val)
 				     DS5_I2C_RETRY_DELAY_US + 500);
 		}
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(&state->client->dev,
 			"%s(): i2c write failed after %d retries, 0x%04x = 0x%x, err %d\n",
 			__func__, DS5_I2C_RETRY_COUNT, reg, val, ret);
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		mutex_lock(&serdes_lock__);
+		int _ret = max96724_switch_link_channel(state->dser_dev);
+		mutex_unlock(&serdes_lock__);
+#endif
+#endif
+	}
 	else if (state->dfu_dev.dfu_state_flag == DS5_DFU_IDLE)
 		dev_dbg(&state->client->dev, "%s(): i2c write 0x%04x: 0x%x\n",
 			__func__, reg, val);
@@ -748,10 +760,18 @@ static int ds5_raw_write(struct ds5 *state, u16 reg,
 		}
 	}
 
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(&state->client->dev,
 			"%s(): i2c raw write failed after %d retries, 0x%04x size(%d), err %d\n",
 			__func__, DS5_I2C_RETRY_COUNT, reg, (int)val_len, ret);
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		mutex_lock(&serdes_lock__);
+		int _ret = max96724_switch_link_channel(state->dser_dev);
+		mutex_unlock(&serdes_lock__);
+#endif
+#endif
+	}
 	else if (state->dfu_dev.dfu_state_flag == DS5_DFU_IDLE)
 		dev_dbg(&state->client->dev,
 			"%s(): i2c raw write 0x%04x: %d bytes\n",
@@ -778,10 +798,18 @@ static int ds5_read(struct ds5 *state, u16 reg, u16 *val)
 		}
 	}
 
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(&state->client->dev,
 			"%s(): i2c read failed after %d retries, 0x%04x, err %d\n",
 			__func__, DS5_I2C_RETRY_COUNT, reg, ret);
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		mutex_lock(&serdes_lock__);
+		int _ret = max96724_switch_link_channel(state->dser_dev);
+		mutex_unlock(&serdes_lock__);
+#endif
+#endif
+	}
 	else if (state->dfu_dev.dfu_state_flag == DS5_DFU_IDLE)
 		dev_dbg(&state->client->dev, "%s(): i2c read 0x%04x: 0x%x\n",
 			__func__, reg, *val);
@@ -806,10 +834,18 @@ static int ds5_raw_read(struct ds5 *state, u16 reg, void *val, size_t val_len)
 				     DS5_I2C_RETRY_DELAY_US + 500);
 		}
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(&state->client->dev,
 			"%s(): i2c raw read failed after %d retries, 0x%04x size(%d), err %d\n",
 			__func__, DS5_I2C_RETRY_COUNT, reg, (int)val_len, ret);
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		mutex_lock(&serdes_lock__);
+		int _ret = max96724_switch_link_channel(state->dser_dev);
+		mutex_unlock(&serdes_lock__);
+#endif
+#endif
+	}
 
 	return ret;
 }
@@ -1955,7 +1991,6 @@ static int ds5_setup_pipeline(struct ds5 *state, u8 data_type1, u8 data_type2,
 		 pipe_id, data_type1, data_type2, vc_id);
 #endif
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-	ret = max96724_switch_link_channel(state->dser_dev);
 	ret |= max9295_set_pipe(state->ser_dev, pipe_id,
 				data_type1, data_type2, vc_id);
 	ret |= max96724_set_pipe(state->dser_dev, pipe_id,
@@ -1966,12 +2001,13 @@ static int ds5_setup_pipeline(struct ds5 *state, u8 data_type1, u8 data_type2,
 	ret |= max9296_set_pipe(state->dser_dev, pipe_id,
 				data_type1, data_type2, vc_id);
 #endif
-	if (ret)
-		dev_warn(&state->client->dev,
+	if (ret) {
+		dev_err(&state->client->dev,
 			 "failed to set pipe %d, data_type1: 0x%x, \
 			 data_type2: 0x%x, vc_id: %u\n",
 			 pipe_id, data_type1, data_type2, vc_id);
-
+		ret = -EAGAIN;
+	}
 	return ret;
 }
 #endif
@@ -2036,21 +2072,23 @@ static int ds5_configure(struct ds5 *state)
 
 	vc_id = state->g_ctx.dst_vc;
 
+	mutex_lock(&serdes_lock__);
 	ret = ds5_setup_pipeline(state, data_type1, data_type2, sensor->pipe_id,
 				 vc_id);
 	// reset data path when switching to Y12I
 	if (state->is_y8 && data_type1 == GMSL_CSI_DT_RGB_888)
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-		max96724_reset_oneshot(state->dser_dev, state->g_ctx.serdes_csi_link);
+		max96724_reset_oneshot(state->dser_dev);
 #else
 		max9296_reset_oneshot(state->dser_dev);
 #endif
+	mutex_unlock(&serdes_lock__);
 	if (ret < 0)
 		return ret;
 #endif
 
 	fmt = sensor->streaming ? sensor->config.format->data_type : 0;
-
+	ret = -EAGAIN;
 	/*
 	 * Set depth stream Z16 data type as 0x31
 	 * Set IR stream Y8I data type as 0x32
@@ -2074,7 +2112,7 @@ static int ds5_configure(struct ds5 *state)
 		return ret;
 
 	if (!sensor->streaming)
-		return ret;
+		return 0;
 
 	if (override_addr != 0) {
 		ret = ds5_write(state, override_addr, fmt);
@@ -2694,8 +2732,12 @@ static int ds5_s_ctrl(struct v4l2_ctrl *ctrl)
 	dev_dbg(&state->client->dev, "%s(): %s - ctrl: %s, value: %d\n",
 		__func__, ds5_get_sensor_name(state), ctrl->name, ctrl->val);
 
+#ifdef CONFIG_VIDEO_D4XX_SERDES
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	mutex_lock(&serdes_lock__);
 	ret = max96724_switch_link_channel(state->dser_dev);
+	mutex_unlock(&serdes_lock__);
+#endif
 #endif
 
 	mutex_lock(&state->lock);
@@ -3137,8 +3179,12 @@ static int ds5_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	dev_dbg(&state->client->dev, "%s(): %s - ctrl: %s \n",
 		__func__, ds5_get_sensor_name(state), ctrl->name);
 
+#ifdef CONFIG_VIDEO_D4XX_SERDES
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	mutex_lock(&serdes_lock__);
 	ret = max96724_switch_link_channel(state->dser_dev);
+	mutex_unlock(&serdes_lock__);
+#endif
 #endif
 
 	switch (ctrl->id) {
@@ -5504,6 +5550,7 @@ static int ds5_state_to_vc(struct ds5 *state) {
 	return state->pad_to_vc[pad];
 }
 #endif
+
 static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct ds5 *state = container_of(sd, struct ds5, mux.sd.subdev);
@@ -5540,11 +5587,17 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 	} else {
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_VIDEO_D4XX_SERDES
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
 	vc_id = ds5_state_to_vc(state);
+
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	mutex_lock(&serdes_lock__);
+	ret = max96724_switch_link_channel(state->dser_dev);
+	mutex_unlock(&serdes_lock__);
 #endif
-#ifdef CONFIG_TEGRA_CAMERA_PLATFORM
-#ifdef CONFIG_VIDEO_D4XX_SERDES
+#else
 	vc_id = state->g_ctx.dst_vc;
 #endif
 #endif
@@ -5560,42 +5613,53 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 		// set manually, need to configure vc in pdata
 		state->g_ctx.dst_vc = vc_id;
 #endif
+		mutex_lock(&serdes_lock__);
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 		sensor->pipe_id =
 			max96724_get_available_pipe_id(state->dser_dev,
 						(int)state->g_ctx.dst_vc,
 						state->g_ctx.serdes_csi_link);
-		if (sensor->pipe_id < 0) {
-			dev_err(&state->client->dev,
-				"No free pipe in max967xx\n");
 #else
 		sensor->pipe_id =
 			max9296_get_available_pipe_id(state->dser_dev,
 					(int)state->g_ctx.dst_vc);
+#endif
+		mutex_unlock(&serdes_lock__);
 		if (sensor->pipe_id < 0) {
 			dev_err(&state->client->dev,
-				"No free pipe in max9296\n");
-#endif
+				"No free pipe in max9x\n");
 			ret = -(ENOSR);
 			goto restore_s_state;
 		}
 #endif
 
 		ret = ds5_configure(state);
+		if (ret == -EAGAIN)
+			goto cleanup_s_state;
 		if (ret)
 			goto restore_s_state;
 
 		ret = ds5_write(state, DS5_START_STOP_STREAM,
 				DS5_STREAM_START | stream_id);
-		if (ret < 0)
-			goto restore_s_state;
-
+		if (ret < 0) {
+			ret = -EAGAIN;
+			goto cleanup_s_state;
+		}
 		// check streaming status from FW
 		for (i = 0; i < DS5_START_MAX_COUNT; i++) {
-			ds5_read(state, stream_status_base, &streaming);
-			ds5_read(state, config_status_base, &status);
+			ret = ds5_read(state, stream_status_base, &streaming);
+			if (ret < 0) {
+				ret = -EAGAIN;
+				goto cleanup_s_state;
+			}
+			ret = ds5_read(state, config_status_base, &status);
+			if (ret < 0) {
+				ret = -EAGAIN;
+				goto cleanup_s_state;
+			}
+
 			if ((status & DS5_STATUS_STREAMING) &&
-					streaming == DS5_STREAM_STREAMING)
+			    streaming == DS5_STREAM_STREAMING)
 				break;
 
 			msleep_range(DS5_START_POLL_TIME);
@@ -5604,73 +5668,82 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 		if (DS5_START_MAX_COUNT == i) {
 			dev_err(&state->client->dev,
 				"start streaming failed, exit on timeout\n");
-			/* notify fw */
-			ret = ds5_write(state, DS5_START_STOP_STREAM,
-					DS5_STREAM_STOP | stream_id);
 			ret = -EAGAIN;
-			goto restore_s_state;
-		} else {
-			dev_dbg(&state->client->dev, "started after %dms\n",
-				i * DS5_START_POLL_TIME);
+			goto cleanup_s_state;
 		}
-		/*
-#ifdef CONFIG_VIDEO_D4XX_SERDES
-#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-			max96724_check_status(state->dser_dev, state->g_ctx.serdes_csi_link);
-			max9295_check_status(state->ser_dev);
-#endif
-#endif
-		*/
-	} else { // off
-		ret = ds5_write(state, DS5_START_STOP_STREAM,
+
+		dev_info(&state->client->dev, "started after %dms\n",
+			 i * DS5_START_POLL_TIME);
+
+		return 0;
+	}
+
+cleanup_s_state:
+	/* off */
+	ret = ds5_write(state, DS5_START_STOP_STREAM,
 				DS5_STREAM_STOP | stream_id);
-		if (ret < 0)
-			goto restore_s_state;
-
+	if (ret < 0)
+		ret = -EAGAIN;
 #ifdef CONFIG_VIDEO_D4XX_SERDES
-		// reset data path when Y12I streaming is done
-		if (state->is_y8 &&
-			state->ir.sensor.config.format->data_type ==
-			GMSL_CSI_DT_RGB_888) {
+	// reset data path when Y12I streaming is done
+	if (state->is_y8 &&
+	    state->ir.sensor.config.format->data_type ==
+	    GMSL_CSI_DT_RGB_888) {
+		mutex_lock(&serdes_lock__);
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-			max96724_reset_oneshot(state->dser_dev, state->g_ctx.serdes_csi_link);
+		max96724_reset_oneshot(state->dser_dev);
 #else
-			max9296_reset_oneshot(state->dser_dev);
+		max9296_reset_oneshot(state->dser_dev);
 #endif
-		}
-#ifndef CONFIG_TEGRA_CAMERA_PLATFORM
-		// reset for IPU6
-		streaming = 0;
-		for (i = 0; i < ARRAY_SIZE(d4xx_set_sub_stream); i++) {
-			if (d4xx_set_sub_stream[i]) {
-				streaming = 1;
-				break;
-			}
-		}
+		mutex_unlock(&serdes_lock__);
+	}
 
+	mutex_lock(&serdes_lock__);
+#if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
+	// reset for IPU6
+	streaming = 0;
+	for (i = 0; i < ARRAY_SIZE(d4xx_set_sub_stream); i++) {
+		if (d4xx_set_sub_stream[i]) {
+			streaming = 1;
+			break;
+		}
+	}
+	if (!streaming) {
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 		dev_warn(&state->client->dev, "max96724_reset_oneshot\n");
-		max96724_reset_oneshot(state->dser_dev,
-				       state->g_ctx.serdes_csi_link);
-#else		  
-		if (!streaming) {
-			dev_warn(&state->client->dev, "max9296_reset_oneshot\n");
-				max9296_reset_oneshot(state->dser_dev);
-		}
-#endif
-#endif
-#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
-		if (max96724_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+		max96724_reset_oneshot(state->dser_dev);
 #else
-		if (max9296_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+		dev_warn(&state->client->dev, "max9296_reset_oneshot\n");
+		max9296_reset_oneshot(state->dser_dev);
 #endif
-			dev_warn(&state->client->dev, "release pipe failed\n");
-		sensor->pipe_id = -1;
+	}
+#endif
+
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	if (max96724_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#else
+	if (max9296_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#endif
+		dev_warn(&state->client->dev, "release pipe failed\n");
+
+	sensor->pipe_id = -1;
+	mutex_unlock(&serdes_lock__);
 #else
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6) || IS_ENABLED(CONFIG_VIDEO_INTEL_IPU7)
-		d4xx_reset_oneshot(state);
+	d4xx_reset_oneshot(state);
 #endif
 #endif
+	if (ret == -EAGAIN) {
+		dev_err(&state->client->dev,
+			"%s stream failed %s i2c read/write link lost!\n",
+			__func__,
+			sensor->sd.name);
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		mutex_lock(&serdes_lock__);
+		max96724_reset_link(state->dser_dev, state->g_ctx.serdes_csi_link);
+		mutex_unlock(&serdes_lock__);
+#endif
+		return ret;
 	}
 
 	ds5_read(state, config_status_base, &status);
@@ -5682,11 +5755,21 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 			stream_status_base, streaming,
 			config_status_base, status, ret);
 
+#ifdef CONFIG_VIDEO_D4XX_SERDES
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	mutex_lock(&serdes_lock__);
+	max96724_check_status(state->dser_dev, state->g_ctx.serdes_csi_link);
+	max9295_check_status(state->ser_dev);
+	mutex_unlock(&serdes_lock__);
+#endif
+#endif
+
 	return ret;
 
 restore_s_state:
 #ifdef CONFIG_VIDEO_D4XX_SERDES
 	if (on && sensor->pipe_id >= 0) {
+		mutex_lock(&serdes_lock__);
 #if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
 		if (max96724_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
 #else
@@ -5694,12 +5777,17 @@ restore_s_state:
 #endif
 			dev_warn(&state->client->dev, "release pipe failed\n");
 		sensor->pipe_id = -1;
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		max96724_check_status(state->dser_dev, state->g_ctx.serdes_csi_link);
+		max9295_check_status(state->ser_dev);
+#endif
+		mutex_unlock(&serdes_lock__);
 	}
 #endif
 
 	ds5_read(state, config_status_base, &status);
-	dev_err(&state->client->dev,
-			"%s stream toggle failed! %x status 0x%04x\n",
+	dev_warn(&state->client->dev,
+			"%s stream toggle restored! %x status 0x%04x\n",
 			ds5_get_sensor_name(state), restore_val, status);
 
 	sensor->streaming = restore_val;
