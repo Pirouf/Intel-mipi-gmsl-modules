@@ -42,7 +42,8 @@ int max96724_get_available_pipe_id(struct device *dev, int vc_id, u32 src_link);
 int max96724_set_pipe(struct device *dev, int pipe_id, u8 data_type1,
 		     u8 data_type2, u32 vc_id, u32 src_link);
 int max96724_release_pipe(struct device *dev, int pipe_id);
-void max96724_reset_oneshot(struct device *dev, u32 src_link);
+void max96724_reset_oneshot(struct device *dev);
+void max96724_reset_link(struct device *dev, u32 src_link);
 
 /**
  * Puts a deserializer device in single exclusive link mode, so link-specific
