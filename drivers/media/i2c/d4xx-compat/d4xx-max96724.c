@@ -1840,22 +1840,62 @@ int max96724_release_pipe(struct device *dev, int pipe_id)
 }
 EXPORT_SYMBOL(max96724_release_pipe);
 
-void max96724_reset_oneshot(struct device *dev, u32 src_link)
+void max96724_reset_oneshot(struct device *dev)
+{
+	struct max96724 *priv = dev_get_drvdata(dev);
+	int err = 0;
+	unsigned int i;
+
+	/* disable each video pipe configuration corresponding to the reset link
+	*/
+	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
+
+		dev_dbg(dev, "%s: disable video pipe %d\n",
+			__func__, i);
+
+		// disable video pipe if is no longer used
+		err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
+				MAX96724_VIDEO_PIPE_EN_FIELD(i),
+				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
+	}
+
+	/* initiate oneshot ctrl reset */
+	dev_info(dev, "%s: initiate GMSL oneshot reset ctrl\n",  __func__);
+
+	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
+		MAX96724_RESET_CTRL_FIELD(0)
+		| MAX96724_RESET_CTRL_FIELD(1)
+		| MAX96724_RESET_CTRL_FIELD(2)
+		| MAX96724_RESET_CTRL_FIELD(3),
+		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(0), 1U)
+		| MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(1), 1U)
+		| MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(2), 1U)
+		| MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(3), 1U));
+	if (err)
+		dev_err(dev, "%s: Failed to trigger GMSL link reset: %d\n",
+			__func__,
+			err);
+
+	// delay to settle link
+	msleep(100);
+}
+EXPORT_SYMBOL(max96724_reset_oneshot);
+
+void max96724_reset_link(struct device *dev, u32 src_link)
 {
 	struct max96724 *priv = dev_get_drvdata(dev);
 	int err = 0;
 	unsigned int i, st_count;
-
 	u8 src_port = max96724_link_to_port(src_link);
 
 	for (i = 0, st_count = 0; i < MAX96724_MAX_PIPES; i++) {
 
 		if (!priv->pipe[i].st_count)
 			continue;
-		/*
+
 		if (src_link != priv->pipe[i].src_link)
 			continue;
-		*/
+
 		st_count++;
 	}
 
@@ -1865,48 +1905,33 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
 		return;
 	}
 
-	/* disable each video pipe configuration corresponding to the reset link
-	*/
-	for (i = 0; i < MAX96724_MAX_PIPES; i++) {
-
-		if (src_link != priv->pipe[i].src_link)
-			continue;
-
-		dev_dbg(dev, "%s: disable %s video pipe %d\n",
-			__func__, max96724_get_link_name(src_link), i);
-
-		// disable video pipe if is no longer used 
-		err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_VIDEO_PIPE_EN_ADDR,
-				MAX96724_VIDEO_PIPE_EN_FIELD(i),
-				MAX96724_FIELD_PREP(MAX96724_VIDEO_PIPE_EN_FIELD(i), 0U));
-	}
-
-	dev_info(dev, "%s: reset %s Link ctrl (stream count=%u) \n",
-		 __func__, max96724_get_link_name(src_link), st_count);
+	/* initiate link and ctrl reset
+	 */
+	dev_info(dev, "%s: initiat %s Link reset (stream count=%u) \n",
+		__func__, max96724_get_link_name(src_link), st_count);
 
 	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
 		MAX96724_RESET_CTRL_FIELD(src_port),
-		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 1U));
+		MAX96724_FIELD_PREP(MAX96724_RESET_LINK_FIELD(src_port), 1U));
 	if (err)
 		dev_err(dev, "%s: Failed to trigger %s link reset: %d\n",
 			__func__,
 			max96724_get_link_name(src_link),
 			err);
 
-	/* delay to settle link */
+	// delay to settle link
 	msleep(10);
 
-	/* clear link and ctrl reset */
 	err = MAX96724_UPDATE_BITS(priv->regmap, MAX96724_RESET_CTRL_ADDR,
-		MAX96724_RESET_CTRL_FIELD(src_port),
-		MAX96724_FIELD_PREP(MAX96724_RESET_CTRL_FIELD(src_port), 0U));
+		MAX96724_RESET_LINK_FIELD(src_port),
+		MAX96724_FIELD_PREP(MAX96724_RESET_LINK_FIELD(src_port), 0U));
 	if (err)
 		dev_err(dev, "%s: Failed to clear %s link reset: %d\n",
 			__func__,
 			max96724_get_link_name(src_link),
 			err);
 
-	/* delay to settle link */
+	// delay to settle link
 	msleep(300);
 
 	/* Enable all channels
@@ -1921,89 +1946,10 @@ void max96724_reset_oneshot(struct device *dev, u32 src_link)
 			  __func__,
 			  err);
 
-	/* delay to settle link */
-	msleep(30);
-
-	/* Re-Check GMSL link status after initial configuration */
-	{
-		unsigned int link_status = 0;
-		max96724_read_reg(dev, MAX96724_LINK_STATUS(src_port), &link_status);
-		dev_dbg(dev, "%s: %s Link status: 0x%02x (LOCK=%d, bit0-7: %s%s%s%s%s%s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), link_status, !!(link_status & MAX96724_LINK_LOCK_BIT),
-			(link_status & 0x01) ? "VID_LOCK " : "",
-			(link_status & 0x02) ? "CONFIG_DETECT " : "",
-			(link_status & 0x04) ? "VIDEO_DETECT " : "",
-			(link_status & 0x08) ? "LOCK " : "",
-			(link_status & 0x10) ? "ERROR " : "",
-			(link_status & 0x20) ? "bit5 " : "",
-			(link_status & 0x40) ? "bit6 " : "",
-			(link_status & 0x80) ? "LOCKED " : "");
-		unsigned int pll_status = 0;
-		max96724_read_reg(dev, MAX96724_DPLL_STATUS_ADDR, &pll_status);
-		dev_dbg(dev, "%s: %s DPLL status: 0x%02x (bit0-7: %s%s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pll_status,
-			(pll_status & MAX96724_DPLL_STATUS_FIELD(0)) ? "CSIPLL0_LOCK " : "",
-			(pll_status & MAX96724_DPLL_STATUS_FIELD(1)) ? "CSIPLL1_LOCK " : "",
-			(pll_status & MAX96724_DPLL_STATUS_FIELD(2)) ? "CSIPLL2_LOCK " : "",
-			(pll_status & MAX96724_DPLL_STATUS_FIELD(3)) ? "CSIPLL3_LOCK " : "");
-		unsigned int vid_status = 0;
-		max96724_read_reg(dev, MAX96724_VID_STATUS_ADDR(src_port), &vid_status);
-		dev_dbg(dev, "%s: %s Video RX status: 0x%02x (LOCK=%d, bit4-6: %s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), vid_status, !!(link_status & MAX96724_VID_LOCK_BIT),
-			(vid_status & 0x40) ? "VID_LOCK " : "",
-			(vid_status & 0x20) ? "VID_PKT_DET " : "",
-			(vid_status & 0x10) ? "VID_SEQ_ERR " : "");
-		unsigned int pipe_0_status = 0, pipe_1_status = 0, pipe_2_status = 0, pipe_3_status = 0;
-		max96724_read_reg(dev, MAX96724_PIPE_X_STATUS_0_MAP_ADDR, &pipe_0_status);
-		dev_dbg(dev, "%s: %s Video TX CSI 0 status: 0x%02x (bit0-2: %s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_0_status,
-			(pipe_0_status & 0x01) ? "SYNC_EN " : "",
-			(pipe_0_status & 0x02) ? "in-SYNC " : "",
-			(pipe_0_status & 0x04) ? "LOST_SYNC " : "");
-		max96724_read_reg(dev, MAX96724_PIPE_X_STATUS_1_MAP_ADDR, &pipe_1_status);
-		dev_dbg(dev, "%s: %s Video TX CSI 1 status: 0x%02x (bit0-2: %s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_1_status,
-			(pipe_1_status & 0x01) ? "EN-SYNC " : "",
-			(pipe_1_status & 0x02) ? "IN-SYNC " : "",
-			(pipe_1_status & 0x04) ? "LOST-SYNC " : "");
-		max96724_read_reg(dev, MAX96724_PIPE_X_STATUS_2_MAP_ADDR, &pipe_2_status);
-		dev_dbg(dev, "%s: %s Video TX CSI 2 status: 0x%02x (bit0-2: %s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_2_status,
-			(pipe_2_status & 0x01) ? "SYNC_EN " : "",
-			(pipe_2_status & 0x02) ? "in-SYNC " : "",
-			(pipe_2_status & 0x04) ? "LOST_SYNC " : "");
-		max96724_read_reg(dev, MAX96724_PIPE_X_STATUS_3_MAP_ADDR, &pipe_3_status);
-		dev_dbg(dev, "%s: %s Video TX CSI 3 status: 0x%02x (bit0-2: %s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_3_status,
-			(pipe_3_status & 0x01) ? "SYNC_EN " : "",
-			(pipe_3_status & 0x02) ? "in-SYNC " : "",
-			(pipe_3_status & 0x04) ? "LOST_SYNC " : "");
-		unsigned int pipe_de_status = 0, pipe_hs_status = 0, pipe_vs_status = 0;
-		max96724_read_reg(dev, MAX96724_PIPE_DE_STATUS_ADDR, &pipe_de_status);
-		dev_dbg(dev, "%s: %s Video Pipeline DE status: 0x%02x (bit0-3: %s%s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_de_status,
-			(pipe_de_status & 0x01) ? "DE_DET_0 " : "",
-			(pipe_de_status & 0x02) ? "DE_DET_1 " : "",
-			(pipe_de_status & 0x04) ? "DE_DET_2 " : "",
-			(pipe_de_status & 0x08) ? "DE_DET_3 " : "");
-		max96724_read_reg(dev, MAX96724_PIPE_HS_STATUS_ADDR, &pipe_hs_status);
-		dev_dbg(dev, "%s: %s Video Pipeline HS status: 0x%02x (bit0-3: %s%s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_hs_status,
-			(pipe_hs_status & 0x01) ? "HS_DET_0 " : "",
-			(pipe_hs_status & 0x02) ? "HS_DET_1 " : "",
-			(pipe_hs_status & 0x04) ? "HS_DET_2 " : "",
-			(pipe_hs_status & 0x08) ? "HS_DET_3 " : "");
-		max96724_read_reg(dev, MAX96724_PIPE_VS_STATUS_ADDR, &pipe_vs_status);
-		dev_dbg(dev, "%s: %s Video Pipeline VS status: 0x%02x (bit0-3: %s%s%s%s)\n",
-			__func__, max96724_get_link_name(src_link), pipe_vs_status,
-			(pipe_vs_status & 0x01) ? "VS_DET_0 " : "",
-			(pipe_vs_status & 0x02) ? "VS_DET_1 " : "",
-			(pipe_vs_status & 0x04) ? "VS_DET_2 " : "",
-			(pipe_vs_status & 0x08) ? "VS_DET_3 " : "");
-	}
-
+	// delay to settle link
+	msleep(10);
 }
-EXPORT_SYMBOL(max96724_reset_oneshot);
+EXPORT_SYMBOL(max96724_reset_link);
 
 static int __max96724_set_pipe_d4xx(struct device *dev, int pipe_id, u8 data_type1,
 				    u8 data_type2, u32 vc_id, u32 csi_id, u32 src_link)
