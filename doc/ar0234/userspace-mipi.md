@@ -2,6 +2,36 @@
 
 This document details the configuration settings for the AR0234 MIPI CSI-2 sensor, providing essential information for system integration. The table below presents the key parameters and their respective values used during system setup and validation.
 
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#bios-configuration-table">BIOS Configuration Table</a></li>
+    <li><a href="#mipi-camera-configuration">MIPI Camera Configuration</a>
+      <ul>
+        <li><a href="#setup-for-ipu6epmtl">Setup for IPU6EPMTL</a></li>
+        <li><a href="#setup-for-ipu75xa">Setup for IPU75XA</a></li>
+      </ul>
+    </li>
+    <li><a href="#camera-configuration-file-setup">Camera Configuration File Setup</a>
+      <ul>
+        <li><a href="#setup-for-ipu6epmtl-1">Setup for IPU6EPMTL</a></li>
+        <li><a href="#setup-for-ipu75xa-1">Setup for IPU75XA</a></li>
+      </ul>
+    </li>
+    <li><a href="#camera-tuning-file-setup">Camera Tuning File Setup</a>
+      <ul>
+        <li><a href="#setup-for-ipu6epmtl-2">Setup for IPU6EPMTL</a></li>
+        <li><a href="#setup-for-ipu75xa-2">Setup for IPU75XA</a></li>
+      </ul>
+    </li>
+    <li><a href="#environment-setup">Environment Setup</a></li>
+    <li><a href="#sensor-verification">Sensor Verification</a></li>
+    <li><a href="#sample-userspace-command">Sample Userspace Command</a></li>
+    <li><a href="#streaming-result">Streaming Result</a></li>
+  </ol>
+</details>
+
 ## BIOS Configuration Table
 
 > **Note:** No External Clock required.
