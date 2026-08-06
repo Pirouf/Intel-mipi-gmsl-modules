@@ -243,3 +243,7 @@ Upon setup completion, verify sensor with:
 | x2               | DMA MODE | 30         |
 
 > **Note**: Refer to [README.md](https://github.com/intel-innersource/drivers.camera.scaling.sensor) for system setup prerequisite.
+
+---
+
+[↑ Back to Top](#description)
