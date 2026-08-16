@@ -1,7 +1,7 @@
-From 251af50e4701db5fcebce9478650ec18f22838e9 Mon Sep 17 00:00:00 2001
+From ed7590de3e5aaa4dc183de7b5f4b860682e72725 Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Sat, 17 Jan 2026 02:05:34 -0700
-Subject: [PATCH 102/105] ipu7-isys : allow virtual-channels on 16 csi2 input
+Subject: [PATCH 102/108] ipu7-isys : allow virtual-channels on 16 csi2 input
  video capture
 
 * ipu7-isys : extend per csi2 video captures v4l2 to 16 sensors input streams

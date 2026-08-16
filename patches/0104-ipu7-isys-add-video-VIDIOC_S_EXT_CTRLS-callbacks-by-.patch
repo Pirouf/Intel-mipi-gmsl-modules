@@ -1,28 +1,29 @@
-From a40415416e69bd707421278898d0b176f9f60f82 Mon Sep 17 00:00:00 2001
+From 2661eec4569dcfce5d5d84a612a7533c3b3a3d0e Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Tue, 28 Apr 2026 10:31:00 -0700
-Subject: [PATCH 104/105] ipu7-isys: add video VIDIOC_S_EXT_CTRLS callbacks by
+Subject: [PATCH 104/108] ipu7-isys: add video VIDIOC_S_EXT_CTRLS callbacks by
  streamid
 
 * isys-video: add video VIDIOC_S_EXT_CTRLS callbacks by streamid
 * isys-csi: add graph walk subdev to get frame desc by streamid
 * isys-csi: add graph walk subdev to enable/disable streams by streamid
 * isys-video: add V4L2_CID_IPU definitions
+* isys-video: restore get src stream-id by src_pad
 
 Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
  .../media/pci/intel/ipu7/ipu7-isys-csi-phy.c  |  85 ++-
  .../media/pci/intel/ipu7/ipu7-isys-csi-phy.h  |   4 +
- .../media/pci/intel/ipu7/ipu7-isys-csi2.c     | 481 +++++++++++++-
+ .../media/pci/intel/ipu7/ipu7-isys-csi2.c     | 481 ++++++++++++-
  .../media/pci/intel/ipu7/ipu7-isys-csi2.h     |  11 +
  .../pci/intel/ipu7/ipu7-isys-video-ext.h      |  61 ++
- .../media/pci/intel/ipu7/ipu7-isys-video.c    | 624 +++++++++++++++++-
+ .../media/pci/intel/ipu7/ipu7-isys-video.c    | 648 +++++++++++++++++-
  .../media/pci/intel/ipu7/ipu7-isys-video.h    |   4 +
- 7 files changed, 1256 insertions(+), 14 deletions(-)
+ 7 files changed, 1280 insertions(+), 14 deletions(-)
  create mode 100644 ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video-ext.h
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
-index 97cd47d..cc6f57f 100644
+index a56aeec..153e63c 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
 @@ -22,6 +22,9 @@
@@ -35,7 +36,7 @@ index 97cd47d..cc6f57f 100644
  
  #define PORT_A		0U
  #define PORT_B		1U
-@@ -276,6 +279,10 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
+@@ -277,6 +280,10 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
  
  	dwc_csi_write(isys, id, VC_EXTENSION, 0x0);
  	n = find_first_zero_bit(data_ids, N_DATA_IDS);
@@ -46,7 +47,7 @@ index 97cd47d..cc6f57f 100644
  	if (n == N_DATA_IDS)
  		return -ENOSPC;
  
-@@ -296,7 +303,17 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
+@@ -297,7 +304,17 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
  	return 0;
  }
  
@@ -64,7 +65,7 @@ index 97cd47d..cc6f57f 100644
  {
  	struct v4l2_mbus_frame_desc_entry *desc_entry = NULL;
  	struct device *dev = &csi2->isys->adev->auxdev.dev;
-@@ -308,9 +325,52 @@ static int ipu7_isys_csi_ctrl_dids_config(struct ipu7_isys_csi2 *csi2, u32 id)
+@@ -309,9 +326,52 @@ static int ipu7_isys_csi_ctrl_dids_config(struct ipu7_isys_csi2 *csi2, u32 id)
  
  	pad = media_entity_remote_source_pad_unique(&csi2->asd.sd.entity);
  	if (IS_ERR(pad)) {
@@ -117,7 +118,7 @@ index 97cd47d..cc6f57f 100644
  	}
  
  	ext_sd = media_entity_to_v4l2_subdev(pad->entity);
-@@ -329,11 +389,21 @@ static int ipu7_isys_csi_ctrl_dids_config(struct ipu7_isys_csi2 *csi2, u32 id)
+@@ -330,11 +390,21 @@ static int ipu7_isys_csi_ctrl_dids_config(struct ipu7_isys_csi2 *csi2, u32 id)
  
  	for (i = 0; i < desc.num_entries; i++) {
  		desc_entry = &desc.entry[i];
@@ -140,7 +141,7 @@ index 97cd47d..cc6f57f 100644
  		}
  	}
  
-@@ -957,7 +1027,12 @@ static int ipu7_isys_phy_config(struct ipu7_isys *isys, u8 id, u8 lanes,
+@@ -959,7 +1029,12 @@ static int ipu7_isys_phy_config(struct ipu7_isys *isys, u8 id, u8 lanes,
  	return 0;
  }
  
@@ -153,7 +154,7 @@ index 97cd47d..cc6f57f 100644
  {
  	struct ipu7_isys *isys = csi2->isys;
  	u32 lanes = csi2->nlanes;
-@@ -989,7 +1064,11 @@ int ipu7_isys_csi_phy_powerup(struct ipu7_isys_csi2 *csi2)
+@@ -991,7 +1066,11 @@ int ipu7_isys_csi_phy_powerup(struct ipu7_isys_csi2 *csi2)
  	}
  
  	ipu7_isys_csi_ctrl_cfg(csi2);
@@ -165,7 +166,7 @@ index 97cd47d..cc6f57f 100644
  
  	ret = ipu7_isys_phy_config(isys, id, lanes, aggregation);
  	if (ret < 0)
-@@ -1038,4 +1117,8 @@ void ipu7_isys_csi_phy_powerdown(struct ipu7_isys_csi2 *csi2)
+@@ -1040,4 +1119,8 @@ void ipu7_isys_csi_phy_powerdown(struct ipu7_isys_csi2 *csi2)
  	if (!is_ipu7(isys->adev->isp->hw_ver) &&
  	    csi2->nlanes > 2U && csi2->port == PORT_A)
  		ipu7_isys_csi_phy_reset(isys, PORT_B);
@@ -864,7 +865,7 @@ index 0000000..7487242
 +
 +#endif /* IPU7_ISYS_VIDEO_EXT_H */
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index 0d35224..e60e8c8 100644
+index a1ab842..5584681 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 @@ -38,6 +38,9 @@
@@ -917,10 +918,10 @@ index 0d35224..e60e8c8 100644
 +	int ret=-EINVAL;
 +
 +	if (av->enum_link_state == IPU7_ISYS_LINK_STATE_DONE) {
- 
++
 +		mce.index = f->index;
 +		mce.pad = 0;
-+
+ 
 +		/* poll remote sensors */
 +		ret = media_pipeline_enumerate_by_stream_cb(av,
 +				ipu7_isys_enum_fmt_subdev, &mce);
@@ -1216,7 +1217,7 @@ index 0d35224..e60e8c8 100644
 +	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
 +	struct media_pad *remote_pad = source_pad;
 +	struct v4l2_subdev *sd = NULL;
- 
++
 +	if (vb2_is_busy(&av->aq.vbq))
 +		return -EBUSY;
 +
@@ -1243,7 +1244,7 @@ index 0d35224..e60e8c8 100644
 +		ret = media_pipeline_enumerate_by_stream_cb(av, ipu7_isys_set_fmt_subdev, &fmt);
 +		if (ret)
 +			return -EINVAL;
-+
+ 
 +		/* TODO: set format for CSI-2
 +		do {
 +			// Non-subdev nodes can be safely ignored here.
@@ -1258,7 +1259,7 @@ index 0d35224..e60e8c8 100644
  	return 0;
  }
  
-@@ -377,7 +697,9 @@ static int link_validate(struct media_link *link)
+@@ -376,7 +696,9 @@ static int link_validate(struct media_link *link)
  	}
  
  	v4l2_subdev_unlock_state(s_state);
@@ -1269,7 +1270,7 @@ index 0d35224..e60e8c8 100644
  	return 0;
  unlock:
  	v4l2_subdev_unlock_state(s_state);
-@@ -958,6 +1280,266 @@ out_media_entity_stop_streaming_firmware:
+@@ -927,6 +1249,290 @@ out_media_entity_stop_streaming_firmware:
  	return ret;
  }
  
@@ -1437,6 +1438,30 @@ index 0d35224..e60e8c8 100644
 +	return has_source_pad;
 +}
 +
++u32 ipu7_isys_get_src_stream_by_src_pad(struct v4l2_subdev *sd, u32 pad)
++{
++	struct v4l2_subdev_state *state;
++	struct v4l2_subdev_route *routes;
++	u32 source_stream = 0;
++	unsigned int i;
++
++	state = v4l2_subdev_lock_and_get_active_state(sd);
++	if (!state)
++		return 0;
++
++	routes = state->routing.routes;
++	for (i = 0; i < state->routing.num_routes; i++) {
++		if (routes[i].source_pad == pad) {
++			source_stream = routes[i].source_stream;
++			break;
++		}
++	}
++
++	v4l2_subdev_unlock_state(state);
++
++	return source_stream;
++}
++
 +int media_pipeline_enumerate_by_stream_cb(
 +		struct ipu7_isys_video *av,
 +		int (*cb_fn)(struct ipu7_isys_video *av,
@@ -1536,7 +1561,7 @@ index 0d35224..e60e8c8 100644
  static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
  	.vidioc_querycap = ipu7_isys_vidioc_querycap,
  	.vidioc_enum_fmt_vid_cap = ipu7_isys_vidioc_enum_fmt,
-@@ -974,6 +1556,11 @@ static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
+@@ -943,6 +1549,11 @@ static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
  	.vidioc_streamon = vb2_ioctl_streamon,
  	.vidioc_streamoff = vb2_ioctl_streamoff,
  	.vidioc_expbuf = vb2_ioctl_expbuf,
@@ -1548,7 +1573,7 @@ index 0d35224..e60e8c8 100644
  };
  
  static const struct media_entity_operations entity_ops = {
-@@ -1121,6 +1708,14 @@ int ipu7_isys_setup_video(struct ipu7_isys_video *av,
+@@ -1083,6 +1694,14 @@ int ipu7_isys_setup_video(struct ipu7_isys_video *av,
  
  	v4l2_subdev_unlock_state(state);
  
@@ -1563,7 +1588,7 @@ index 0d35224..e60e8c8 100644
  	ret = ipu7_isys_csi2_get_remote_desc(route->sink_stream,
  					     to_ipu7_isys_csi2(asd),
  					     *source_entity, &entry,
-@@ -1218,7 +1813,27 @@ int ipu7_isys_video_init(struct ipu7_isys_video *av)
+@@ -1180,8 +1799,28 @@ int ipu7_isys_video_init(struct ipu7_isys_video *av)
  	if (ret)
  		goto out_media_entity_cleanup;
  
@@ -1581,17 +1606,18 @@ index 0d35224..e60e8c8 100644
 +		"ext-ctrls: %s: set video_enum_link\n", av->vdev.name);
 +
 +	av->vdev.ctrl_handler = &av->ctrl_handler;
-+	return ret;
-+
+ 	return ret;
+ 
 +out_ctrl_handler_cleanup:
 +	v4l2_ctrl_handler_free(&av->ctrl_handler);
 +#else
- 	return ret;
++	return ret;
 +#endif
- 
++
  out_media_entity_cleanup:
  	vb2_video_unregister_device(&av->vdev);
-@@ -1235,6 +1850,9 @@ out_mutex_destroy:
+ 	media_entity_cleanup(&av->vdev.entity);
+@@ -1197,6 +1836,9 @@ out_mutex_destroy:
  
  void ipu7_isys_video_cleanup(struct ipu7_isys_video *av)
  {

@@ -1,7 +1,7 @@
-From b4f1af2b1593e7610b8b881b04e294bb8ecf2e9c Mon Sep 17 00:00:00 2001
+From 66416d02e2d0ffca0b64fdfc83b61d51f02660a3 Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Sat, 17 Jan 2026 02:10:39 -0700
-Subject: [PATCH 101/106] ipu7-isys: make modules suffix versioning same as
+Subject: [PATCH 101/108] ipu7-isys: make modules suffix versioning same as
  dkms
 
 Signed-off-by: Florent Pirou <florent.pirou@intel.com>
@@ -13,7 +13,7 @@ Signed-off-by: Florent Pirou <florent.pirou@intel.com>
  4 files changed, 15 insertions(+)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile b/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
-index 5041701..a5266b0 100644
+index 3c35ca5..ffe7d23 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/Makefile
 @@ -1,5 +1,15 @@
@@ -32,8 +32,8 @@ index 5041701..a5266b0 100644
  
  is_kernel_lt_6_10 = $(shell if [ $$(printf "6.10\n$(KERNELVERSION)" | sort -V | head -n1) != "6.10" ]; then echo 1; fi)
  ifeq ($(is_kernel_lt_6_10), 1)
-@@ -32,6 +42,8 @@ intel-ipu7-isys-objs                    += ipu7-isys-tpg.o
- endif
+@@ -29,6 +39,8 @@ intel-ipu7-isys-objs			+= ipu7-isys.o \
+ 
  obj-$(CONFIG_VIDEO_INTEL_IPU7)		+= intel-ipu7-isys.o
  
 +subdir-ccflags-y += -DDRIVER_VERSION_SUFFIX=\"${DRIVER_VERSION_SUFFIX}\"
@@ -42,19 +42,19 @@ index 5041701..a5266b0 100644
  
  ccflags-y += -I$(src)/
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
-index ea46c8c..ee6470a 100644
+index bf4dfe1..b55dc43 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
-@@ -1501,3 +1501,4 @@ MODULE_IMPORT_NS("INTEL_IPU_BRIDGE");
+@@ -1540,3 +1540,4 @@ MODULE_IMPORT_NS("INTEL_IPU_BRIDGE");
  MODULE_IMPORT_NS(INTEL_IPU7);
  MODULE_IMPORT_NS(INTEL_IPU_BRIDGE);
  #endif
 +MODULE_VERSION(DRIVER_VERSION_SUFFIX);
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.c
-index a9f03ed..f48b591 100644
+index 18aebd0..785af1f 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.c
-@@ -2877,3 +2877,4 @@ MODULE_AUTHOR("Qingwu Zhang <qingwu.zhang@intel.com>");
+@@ -2880,3 +2880,4 @@ MODULE_AUTHOR("Qingwu Zhang <qingwu.zhang@intel.com>");
  MODULE_AUTHOR("Intel");
  MODULE_LICENSE("GPL");
  MODULE_DESCRIPTION("Intel ipu7 pci driver");

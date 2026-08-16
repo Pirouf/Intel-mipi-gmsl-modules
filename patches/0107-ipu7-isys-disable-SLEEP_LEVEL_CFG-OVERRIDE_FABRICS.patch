@@ -1,4 +1,4 @@
-From ec503e89dfca9794a55b2c33cd01c40f23c2c090 Mon Sep 17 00:00:00 2001
+From 4a92bd28c35378a113de4d9b2da724fc4a97253d Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Thu, 23 Jul 2026 09:05:17 -0700
 Subject: [PATCH 107/108] ipu7-isys: disable SLEEP_LEVEL_CFG OVERRIDE_FABRICS
@@ -22,10 +22,10 @@ index 3eafd6a..871ba10 100644
  #define BUTTRESS_OWN_ACK_PS_PLL		BIT(8)
  #define BUTTRESS_OWN_ACK_IS_CLK		BIT(9)
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
-index 0073b34..5a60bc2 100644
+index dfbb433..8db2d99 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
-@@ -557,6 +557,11 @@ static int ipu7_buttress_powerup(struct device *dev,
+@@ -565,6 +565,11 @@ static int ipu7_buttress_powerup(struct device *dev,
  	val &= ~ctrl->ovrd_clk;
  	writel(val, isp->base + BUTTRESS_REG_SLEEP_LEVEL_CFG);
  

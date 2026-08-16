@@ -1,7 +1,7 @@
-From 12091ca1671bba71ea11b12d353c861f6a95dc06 Mon Sep 17 00:00:00 2001
+From 327e209a07769e04a24cf66dfcceaa6b6ebdd6bd Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Wed, 6 May 2026 08:53:02 -0700
-Subject: [PATCH 106/106] ipu7-isys: enable cphy/dphy 5/4-bits vc-extension
+Subject: [PATCH 106/108] ipu7-isys: enable cphy/dphy 5/4-bits vc-extension
 
 VC_EXTENSION register activates extra bits for virtual channel.
 The Virtual Channel Extension (VCX) field is common to both options,
@@ -13,10 +13,10 @@ Signed-off-by: florent pirou <florent.pirou@intel.com>
  1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
-index cc6f57f..4badb6a 100644
+index 153e63c..1224f3b 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
-@@ -274,10 +274,15 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
+@@ -275,10 +275,15 @@ static int __dids_config(struct ipu7_isys_csi2 *csi2, u32 id, u8 vc, u8 dt)
  	u8 lo, hi;
  	int ret;
  

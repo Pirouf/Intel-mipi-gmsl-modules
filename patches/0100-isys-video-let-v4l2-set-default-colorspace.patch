@@ -1,7 +1,7 @@
-From aa9461f0cdcc69bb4441df0539905b9815fe93a6 Mon Sep 17 00:00:00 2001
+From e704716b2abe4faf14e6bc24bc0889b3e58da89a Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Mon, 19 Jan 2026 10:38:25 -0700
-Subject: [PATCH 100/105] isys-video: let v4l2 set default colorspace
+Subject: [PATCH 100/108] isys-video: let v4l2 set default colorspace
 
 Signed-off-by: Florent Pirou <florent.pirou@intel.com>
 ---
@@ -9,7 +9,7 @@ Signed-off-by: Florent Pirou <florent.pirou@intel.com>
  1 file changed, 1 deletion(-)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index f69e7a6..fdd59bc 100644
+index 3078cf2..95a0d7b 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 @@ -257,7 +257,6 @@ static void __ipu_isys_vidioc_try_fmt_vid_cap(struct ipu7_isys_video *av,

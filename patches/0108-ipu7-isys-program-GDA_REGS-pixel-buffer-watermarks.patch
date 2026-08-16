@@ -1,4 +1,4 @@
-From 7c12b93b8de82ac9d6e162e34146363758b883b7 Mon Sep 17 00:00:00 2001
+From b247498867aedfedcd598f6e5eeb9f5a2b1f6ba5 Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Thu, 23 Jul 2026 10:40:42 -0700
 Subject: [PATCH 108/108] ipu7-isys: program GDA_REGS pixel-buffer watermarks
@@ -135,10 +135,10 @@ index 871ba10..2f6108a 100644
 +
  #endif /* IPU7_BUTTRESS_REGS_H */
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
-index 5a60bc2..d4de3fb 100644
+index 8db2d99..f019d44 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-buttress.c
-@@ -481,6 +481,10 @@ static void isys_nde_control(struct device *dev, bool on)
+@@ -489,6 +489,10 @@ static void isys_nde_control(struct device *dev, bool on)
  	u32 val, value, scale, valid, resvec;
  	u32 nde_reg;
  
@@ -149,7 +149,7 @@ index 5a60bc2..d4de3fb 100644
  	if (on) {
  		value = BUTTRESS_NDE_VAL_ACTIVE;
  		scale = BUTTRESS_NDE_SCALE_ACTIVE;
-@@ -491,6 +495,20 @@ static void isys_nde_control(struct device *dev, bool on)
+@@ -499,6 +503,20 @@ static void isys_nde_control(struct device *dev, bool on)
  		valid = BUTTRESS_NDE_VALID_DEFAULT;
  	}
  
@@ -194,7 +194,7 @@ index aad52c4..ce05f33 100644
  #define GDA_IRQ_CTL_CLEAR			(IS_MAIN_GDA_BASE + 0x20)
  #define GDA_IRQ_CTL_ENABLE			(IS_MAIN_GDA_BASE + 0x24)
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index e60e8c8..04f6d61 100644
+index 5584681..8cf0533 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 @@ -414,6 +414,13 @@ static int ipu7_isys_enum_frameintervals(struct file *file, void *fh,
@@ -266,7 +266,7 @@ index e60e8c8..04f6d61 100644
  	}
  	return -EINVAL;
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
-index ee6470a..efa26b8 100644
+index b55dc43..ccf56f1 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.c
 @@ -35,6 +35,7 @@
@@ -277,7 +277,7 @@ index ee6470a..efa26b8 100644
  
  #include "abi/ipu7_fw_isys_abi.h"
  
-@@ -668,9 +669,149 @@ static void enable_to_sw_irq(struct ipu7_isys *isys, bool enable)
+@@ -707,9 +708,149 @@ static void enable_to_sw_irq(struct ipu7_isys *isys, bool enable)
  	writel(mask, base + offset + TO_SW_IRQ_CNTL_ENABLE);
  }
  
@@ -428,7 +428,7 @@ index ee6470a..efa26b8 100644
  	void __iomem *base = isys->pdata->base;
  
  	/* soft reset */
-@@ -684,12 +825,20 @@ void ipu7_isys_setup_hw(struct ipu7_isys *isys)
+@@ -723,12 +864,20 @@ void ipu7_isys_setup_hw(struct ipu7_isys *isys)
  
  	enable_to_sw_irq(isys, 1);
  	enable_csi2_legacy_irq(isys, 1);
@@ -450,10 +450,10 @@ index ee6470a..efa26b8 100644
  
  static int isys_runtime_pm_resume(struct device *dev)
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
-index 19eea94..8d9c4b4 100644
+index dd28f01..95fd22c 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
-@@ -175,4 +175,12 @@ void ipu7_put_fw_msg_buf(struct ipu7_isys *isys, uintptr_t data);
+@@ -184,4 +184,12 @@ void ipu7_put_fw_msg_buf(struct ipu7_isys *isys, uintptr_t data);
  void ipu7_cleanup_fw_msg_bufs(struct ipu7_isys *isys);
  int isys_isr_one(struct ipu7_bus_device *adev);
  void ipu7_isys_setup_hw(struct ipu7_isys *isys);

@@ -1,7 +1,7 @@
-From ef52957c76686f674a76783e53af6f092e9ebea6 Mon Sep 17 00:00:00 2001
+From dff81208b1798ec9b886f7eb62cdb83a0294c59f Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Sat, 17 Jan 2026 02:08:28 -0700
-Subject: [PATCH 103/105] ipu7-isys : add d4xx pixel format support
+Subject: [PATCH 103/108] ipu7-isys : add d4xx pixel format support
 
 Signed-off-by: Florent Pirou <florent.pirou@intel.com>
 ---
@@ -13,14 +13,14 @@ Signed-off-by: Florent Pirou <florent.pirou@intel.com>
  5 files changed, 23 insertions(+), 3 deletions(-)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h b/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h
-index dc63449..9abf8d1 100644
+index db1bcfd..2c2fd67 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h
-@@ -125,6 +125,7 @@ enum ipu7_insys_frame_format_type {
- 	IPU_INSYS_FRAME_FORMAT_ARGB888 = 31,
- 	IPU_INSYS_FRAME_FORMAT_BGRA888 = 32,
- 	IPU_INSYS_FRAME_FORMAT_ABGR888 = 33,
-+	IPU_INSYS_FRAME_FORMAT_VYUY = 34,
+@@ -134,6 +134,7 @@ enum ipu7_insys_frame_format_type {
+ 	IPU_INSYS_FRAME_FORMAT_RAW20 = 40,
+ 	IPU_INSYS_FRAME_FORMAT_P010 = 41,
+ 	IPU_INSYS_FRAME_FORMAT_RGB555 = 42,
++	IPU_INSYS_FRAME_FORMAT_VYUY = 43,
  	N_IPU_INSYS_FRAME_FORMAT
  };
  
@@ -51,7 +51,7 @@ index 6ba21c3..75be4a7 100644
  };
  
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c
-index 98b6ef6..45be983 100644
+index 67a7760..4cbcaee 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c
 @@ -19,6 +19,7 @@
@@ -87,7 +87,7 @@ index 98b6ef6..45be983 100644
  	default:
  		WARN_ON(1);
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index fdd59bc..0d35224 100644
+index 95a0d7b..a1ab842 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 @@ -41,6 +41,16 @@
@@ -120,7 +120,7 @@ index fdd59bc..0d35224 100644
  
  static int video_open(struct file *file)
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
-index 2e45258..19eea94 100644
+index c950f24..dd28f01 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys.h
 @@ -43,8 +43,8 @@ struct dentry;
