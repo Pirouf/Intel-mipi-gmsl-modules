@@ -253,6 +253,27 @@ BUILT_MODULE_NAME[$((++i))]="max9296a"
 BUILT_MODULE_LOCATION[$i]="drivers/media/i2c/maxim-serdes"
 DEST_MODULE_LOCATION[$i]="/updates"
 STRIP[$i]=no
+
+else
+BUILT_MODULE_NAME[$((++i))]="d4xx"
+BUILT_MODULE_LOCATION[$i]="drivers/media/i2c/d4xx-compat"
+DEST_MODULE_LOCATION[$i]="/updates"
+STRIP[$i]=no
+
+BUILT_MODULE_NAME[$((++i))]="d4xx-max9295"
+BUILT_MODULE_LOCATION[$i]="drivers/media/i2c/d4xx-compat"
+DEST_MODULE_LOCATION[$i]="/updates"
+STRIP[$i]=no
+
+BUILT_MODULE_NAME[$((++i))]="d4xx-max9296"
+BUILT_MODULE_LOCATION[$i]="drivers/media/i2c/d4xx-compat"
+DEST_MODULE_LOCATION[$i]="/updates"
+STRIP[$i]=no
+
+BUILT_MODULE_NAME[$((++i))]="d4xx-max96724"
+BUILT_MODULE_LOCATION[$i]="drivers/media/i2c/d4xx-compat"
+DEST_MODULE_LOCATION[$i]="/updates"
+STRIP[$i]=no
 fi
 
 # IPU6 drivers from submodule

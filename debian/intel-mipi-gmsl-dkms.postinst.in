@@ -22,6 +22,8 @@ db_get ${DKMS_PACKAGE_NAME}/board
 BOARD=${RET}
 db_get ${DKMS_PACKAGE_NAME}/sensor
 SENSOR=${RET}
+db_get ${DKMS_PACKAGE_NAME}/d4xx-compat
+D4XX=${RET}
 
 # Derive the AML path
 AML="${AMLDIR}/${IPU}/${BOARD}_${SENSOR}.aml"
@@ -49,7 +51,7 @@ case "$1" in
 				fi
 			fi
 		else
-			echo "postinst build for ${MAX9X} ACPI built-in PDATA (SKIP_MAXIM_SERDES=1) " >&2
+			echo "postinst build fallback on ${MAX9X} and ${D4XX} ACPI built-in PDATA (SKIP_MAXIM_SERDES=1) " >&2
 			if [ -e /etc/default/grub.d/ssdt.cfg ]; then
 
 				echo "clear /etc/default/grub.d/ssdt.cfg" >&2
@@ -59,8 +61,18 @@ case "$1" in
 				fi
 			fi
 			export SKIP_MAXIM_SERDES=1
-			echo "clear MAKE_OPTS" >&2
-			export MAKE_OPTS=""
+			if [ "$D4XX" = "d4xx-max9296" ]; then
+				echo "clear MAKE_OPTS" >&2
+				export MAKE_OPTS=""
+			fi
+			if [ "$D4XX" = "d4xx-max96724" ]; then
+				echo "apply MAKE_OPTS=\"-DCONFIG_VIDEO_D4XX_MAX96724\"" >&2
+				export MAKE_OPTS="-DCONFIG_VIDEO_D4XX_MAX96724"
+			fi
+			if [ "$D4XX" = "d4xx-max96712" ]; then
+				echo "apply MAKE_OPTS=\"-DCONFIG_VIDEO_D4XX_MAX96712\"" >&2
+				export MAKE_OPTS="-DCONFIG_VIDEO_D4XX_MAX96712"
+			fi
 		fi
 
 		for DKMS_POSTINST in /usr/lib/dkms/common.postinst /usr/share/$DKMS_PACKAGE_NAME/postinst; do

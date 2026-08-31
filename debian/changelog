@@ -2,7 +2,7 @@ intel-mipi-gmsl-drivers (20260907-1) UNRELEASED; urgency=low
 
   * d4xx-compat : add backward compatible realsense2 multicam and multistream support ACPI PDATA
 
- -- ECI Maintainer <eci.maintainer@intel.com>  Tue, 00 Sep 2026 19:15:00 +0000
+ -- ECI Maintainer <eci.maintainer@intel.com>  Tue, 08 Sep 2026 19:15:00 +0000
 
 intel-mipi-gmsl-drivers (20260706-0) UNRELEASED; urgency=low
 

@@ -17,6 +17,10 @@ defaultssdtipu := ipu7
 defaultssdtboard := max96724-servoss
 defaultssdtsensor := d3_isx031
 
+# d4xx-compat Deserializer arch
+d4xxdeserlist := "d4xx-max9296 d4xx-max96712 d4xx-max96724"
+defaultd4xxdeser := d4xx-max96724
+
 # special characters
 empty :=
 space := $(empty) $(empty)
@@ -153,6 +157,7 @@ $(generated_dkms_files) : $(generated_dkms_files:=.in) debian/rules
 	    -e 's,@DKMS_PACKAGE_VERSION@,$(DEB_VERSION_UPSTREAM_REVISION),g' \
 	    -e 's,@amldir@,$(datadir)/camera/acpi,g' \
 	    -e 's/@deserlist@/$(call unquote,$(deserlist))/g' \
+	    -e 's/@d4xxdeserlist@/$(call commasep,$(call unquote,$(d4xxdeserlist)))/g' \
 	    -e 's/@sensorlist@/$(call commasep,$(call unquote,$(sensorlist)))/g' \
 	    -e 's/@ipulist@/$(call commasep,$(call unquote,$(ipulist)))/g' \
 	    -e 's/@boardlist@/($(foreach b,$(ipulist),[$b]="$(call commasep,$(scenariolist_$b))"))/g' \
@@ -163,6 +168,7 @@ $(generated_dkms_files) : $(generated_dkms_files:=.in) debian/rules
 	    -e 's/@defaultsensor@/$(defaultssdtsensor)/g' \
 	    -e 's/@defaultipu@/$(defaultssdtipu)/g' \
 	    -e 's/@defaultmaximserdes@/$(defaultssdtboard)/g' \
+	    -e 's/@defauld4xxserdes@/$(defaultd4xxdeser)/g' \
 	    -e 's/@marchdefault@/$(defaultdeser)/g' \
 	    -e 's/@pdatadefault@/$(defaultpdata)/g' \
 	    <$(@:=.in) >$@
