@@ -20,3 +20,6 @@ debian/helpers/max96724_i2c*.sh               /usr/share/camera
 debian/helpers/mtbf-test-*.sh                 /usr/share/camera
 debian/helpers/10-max20087-poc-cycle.conf     /usr/lib/systemd/system/v4l2-gmsl-init.service.d
 debian/helpers/10-ignore-intel-ipu7-blacklist.conf     /usr/lib/systemd/system/modprobe@intel-ipu7-isys.service.d
+debian/helpers/d4xx.conf                       /etc/modprobe.d
+debian/helpers/rs-enum-ipu.sh                  /usr/share/camera
+debian/helpers/rs_ipu_d457_bind.sh             /usr/share/camera

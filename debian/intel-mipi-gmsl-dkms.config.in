@@ -23,10 +23,8 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 		# query max9x
 		db_input critical intel-mipi-gmsl-dkms/max9x || true
 	        if db_go; then
-		    db_set intel-mipi-gmsl-dkms/acpi-ssdt-camera grub_ssdt_overlay
 		    STATE="serdes"
 		else
-		    db_set intel-mipi-gmsl-dkms/acpi-ssdt-camera ipu_acpi_pdata
 		    STATE="done"
 		fi
 		;;
@@ -34,9 +32,11 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 		# query serdes
 		db_get intel-mipi-gmsl-dkms/max9x 
 	        if [ "$RET" = "maxim-serdes" ]; then
+		    db_set intel-mipi-gmsl-dkms/acpi-ssdt-camera grub_ssdt_overlay
 		    STATE="board"
 		else
-		    STATE="done"
+		    db_set intel-mipi-gmsl-dkms/acpi-ssdt-camera ipu_acpi_pdata
+		    STATE="d4xx"
 		fi
 		;;
             board)
@@ -91,5 +91,14 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
                     STATE="board"
 		fi
 		;;
+            d4xx)
+                # query d4xx-compat
+                db_input critical intel-mipi-gmsl-dkms/d4xx-compat || true
+                if db_go; then
+                    STATE="quit"
+                else
+                    STATE="done"
+                fi
+                ;;
     esac
 done
