@@ -117,7 +117,8 @@ endif
 # Build V4L2 core module
 obj-m += $(KERNEL_MEDIA_TREE)/drivers/media/v4l2-core/
 obj-m += $(KERNEL_MEDIA_TREE)/drivers/media/mc/
-LINUXINCLUDE := -I$(src)/$(KERNEL_MEDIA_TREE)/include/uapi -I$(src)/$(KERNEL_MEDIA_TREE)/include $(LINUXINCLUDE)
+# Override LINUXINCLUDE to put our include path first
+LINUXINCLUDE := -I$(src)/include -I$(src)/$(KERNEL_MEDIA_TREE)/include/uapi -I$(src)/$(KERNEL_MEDIA_TREE)/include $(LINUXINCLUDE)
 
 # Build ipu-bridge module
 obj-m += $(KERNEL_MEDIA_TREE)/drivers/media/pci/intel/
