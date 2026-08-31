@@ -8,7 +8,7 @@ SUBSYSTEM=="video4linux", ATTR{name}=="i2c-ar0234-*", RUN+="/bin/bash -c '/usr/s
 
 # TEMPORARY : Device rules for Intel RealSense MIPI devices.
 # DFU rules
-# SUBSYSTEM=="d4xx-class", KERNEL=="d4xx-dfu*", GROUP="video", MODE="0660"
+SUBSYSTEM=="d4xx-class", KERNEL=="d4xx-dfu*", GROUP="video", MODE="0660"
 
 # video links for SDK, binding max9x UEFI builtin Camera PDATA ACPI for ipu6/ipu7/ipu8
 SUBSYSTEM=="video4linux", ATTR{name}=="DS5 mux ?-[0-9]", RUN+="/bin/bash -c '/usr/share/camera/rs_ipu_d457_bind.sh -n > /dev/kmsg; /usr/share/camera/rs-enum-ipu.sh -n -q > /dev/kmsg'"
