@@ -4,7 +4,7 @@ intel-mipi-gmsl-drivers (20261030-0) UNRELEASED; urgency=low
 
  -- ECI Maintainer <eci.maintainer@intel.com>  Fri, 30 Oct 2026 19:20:00 +0000
 
-intel-mipi-gmsl-drivers (20260907-1) UNRELEASED; urgency=low
+intel-mipi-gmsl-drivers (20260907-0eci7) UNRELEASED; urgency=low
 
   * acpi, ipu7 : add initial kbox A-151 SSDT-overlays
   * acpi, ipu7 : add initial adv Mio-5381 SSDT-overlays
@@ -29,10 +29,6 @@ intel-mipi-gmsl-drivers (20260907-0eci6) UNRELEASED; urgency=low
 intel-mipi-gmsl-drivers (20260907-0) UNRELEASED; urgency=low
 
   * initial package based of Intel MIPI-CSI Camera Reference drivers [Release 2026 Q3.1](https://github.com/intel/Intel-MIPI-CSI-Camera-Reference-Driver/releases/tag/20261023_Q3.1)
-
-intel-mipi-gmsl-drivers (20260706-0) UNRELEASED; urgency=low
-
-  * initial package based of Intel MIPI-CSI Camera Reference drivers [Release 2026 Q3.1](https://github.com/intel/Intel-MIPI-CSI-Camera-Reference-Driver/releases/tag/20260907_Q3.1)
 
  -- ECI Maintainer <eci.maintainer@intel.com>  Mon, 07 Sep 2026 15:13:00 +0000
 
