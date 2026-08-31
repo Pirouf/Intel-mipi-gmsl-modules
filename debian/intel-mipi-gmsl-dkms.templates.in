@@ -29,3 +29,10 @@ Type: select
 Choices: ${sensorlist}
 Default: @defaultsensor@
 Description: Select ${boardextended}-to-sensor [defaut:@defaultsensor@] ACPI devices SSDT-overlays.
+
+Template: intel-mipi-gmsl-dkms/d4xx-compat
+Type: select
+Choices: @d4xxdeserlist@
+Default: @defauld4xxserdes@
+Description: Compile d4xx-compat (legacy <= 1.0.1.31) GMSL2 Serializer-Deserializer [defaut:@defauld4xxserdes@]
+  ACPI PDATA probe GMSL2 kernel drivers on Camera ACPI device either for @d4xxdeserlist@.
