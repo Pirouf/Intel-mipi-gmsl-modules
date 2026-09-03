@@ -29,6 +29,7 @@ Provides: ipu7-modules
 Conflicts: ipu7-modules, intel-ipu6-dkms
 Replaces: ipu7-modules, intel-ipu6-dkms
 XB-Modaliases: ${modaliases}
+XB-Git-Commit: 0483a76a1c8c06e80ffccf2091eb497b330b2d47
 Description: Intel Integrated Image Processing Unit 6/7/8 (IPU6/IPU7/IPU8) drivers
  This package provides kernel drivers for MIPI/GMSL2 cameras through the
  Intel Alder Lake, Raptor Lake, Meteor Lake, Arrow lake and Panther Lake platforms.
