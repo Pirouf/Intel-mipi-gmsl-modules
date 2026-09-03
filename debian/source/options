@@ -24,7 +24,7 @@ tar-ignore=ipu7-drivers/README.md
 tar-ignore=ipu7-drivers/SECURITY.md
 tar-ignore=ipu7-drivers/dkms.conf
 tar-ignore=ipu7-drivers/Makefile
-tar-ignore=debian
+
 tar-ignore=.pc
 tar-ignore=*.deb
 tar-ignore=*.changes
