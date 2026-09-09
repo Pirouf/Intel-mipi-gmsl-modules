@@ -82,6 +82,9 @@ obj-m += ipu7-drivers/drivers/media/pci/intel/ipu7/
 # Build IPU6 drivers from submodule
 obj-m += ipu6-drivers/drivers/media/pci/intel/ipu6/
 
+# Override LINUXINCLUDE to put our include path first
+LINUXINCLUDE := -I$(src)/include -I$(src)/$(KERNEL_REV)/include/uapi -I$(src)/$(KERNEL_REV)/include $(LINUXINCLUDE)
+
 # Build V4L2 core module
 obj-m += $(KERNEL_REV)/drivers/media/v4l2-core/
 
