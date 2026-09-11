@@ -8,6 +8,25 @@
  *   DESCH_SER_GPIOREF   - GPIO controller path for SER (e.g. ^^SERx), used in gpio resources (e.g. reset-gpios)
  *   CAM_LANES           - Number of MIPI data lanes for the camera
  */
+
+#ifndef DESCH_SER_GPIORESETID
+
+#define DESCH_SER_GPIORESETID 0
+
+#endif
+
+#ifndef SERCH_CAM_I2C
+
+#define SERCH_CAM_I2C 0x10
+
+#endif
+
+#ifndef CAM_CSI_REMOTE_PORT
+
+#define CAM_CSI_REMOTE_PORT 0
+
+#endif
+
 Method (_STA, 0, NotSerialized) // _STA: Status
 {
     Return (0x0F)               // bit 0: device is present, bit 1: device is enabled, bit 2: device is shown in UI, bit 3: device is functional
@@ -35,13 +54,13 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
         1,                      // PhyType (1 for DPHY)
         0,                      // LocalPort (AR0234 only 1 PHY)
         DESCH_SER_PATH,         // ResourceSource (Path to parent SERx, e.g. "\\_SB.PC00.DESx.CHxx.SERx")
-        0,                      // ResourceSourceIndex (e.g. 0 for SERx PRT0)
+        CAM_CSI_REMOTE_PORT,    // ResourceSourceIndex (e.g. 0 for SERx PRT0)
         ,                       // ResourceUsage
         ,                       // DescriptorName
         )                       // VendorData
 
     I2cSerialBusV2 (
-        0x0010,                 // SlaveAddress (0x10 based on AR0234 hardware)
+        SERCH_CAM_I2C,          // SlaveAddress (0x10 based on AR0234 hardware)
         ControllerInitiated,    // SlaveMode
         0x00061A80,             // ConnectionSpeed
         AddressingMode7Bit,     // AddressingMode
@@ -59,7 +78,6 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
     Package ()
     {
         Package () { "mipi-img-clock-frequency", 96000000 }, // 96 MHz
-
         /*
          * Sensor specific GPIOs, reset-gpios will be used by ar0234.c
          * when devm_gpiod_get_optional is being called with "reset" consumer.
@@ -72,7 +90,20 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
          * 1 is active low for reset
          *
          */
-        Package () { "reset-gpios", Package () { DESCH_SER_GPIOREF, 0, 0, 1 } },
+        Package () { "reset-gpios", Package () { DESCH_SER_GPIOREF, 0, DESCH_SER_GPIORESETID, 1 } },
+        /*
+        * FSIN GPIOs, fsin-gpios will be used by isx031.c
+        * when devm_gpiod_get_optional is being called with "fsin" consumer.
+        *
+        * DESCH_SER_GPIOREF is the GPIO controller from parent SERx
+        * 0 is the GPIO pin group in parent SERx
+        * 1 is the index of pin in the GPIO pin group in parent SERx
+        * 1 is active low for FSIN
+        *
+        */
+#ifdef DESCH_CAM_FSIN_GPIO
+        Package () { "fsin-gpios", Package () { DESCH_SER_GPIOREF, 0, DESCH_SER_GPIOFSINID, 1 } },
+#endif
     },
     ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
     Package ()
