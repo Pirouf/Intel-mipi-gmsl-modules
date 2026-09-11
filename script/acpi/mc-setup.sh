@@ -1357,7 +1357,7 @@ for k in "${!CFG_LINKS[@]}"; do
 
         case "$model" in
             d4xx)
-                mc_v "\"D4XX ${s} ${cam}\":0 [fmt:${fmt}/${size} field:none]"
+                mc_v "\"D4XX ${s} ${cam}\":0/0 [fmt:${fmt}/${size} field:none]"
                 ;;
             isx031)
                 mc_v "\"isx031 ${cam}\":0/${sid} [fmt:${fmt}/${size} field:none]"
