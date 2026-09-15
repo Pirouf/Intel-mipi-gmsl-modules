@@ -328,6 +328,10 @@ declare -a DES_PATH=() DES_BA=() DES_PREFIX_NAME=() DES_SRC_PAD=()
 declare -a IPU_CSI2_ENTITY=() IPU_BASE=() CAPTURE_BASE=()
 NUM_DES=0
 
+# get IPU CSI2 ISYS Capture  /dev/video initial offset
+PREFIX=$(v4l2-ctl --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
+VID_DEV_OFFSET=$(media-ctl -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
+
 # Per-link associative arrays keyed by "d_l" (deserializer index, link index):
 declare -A SER_PATH=() CAM_PATH=()
 declare -A SER_BA=()  CAM_BA=()
@@ -519,19 +523,20 @@ detect_mipi_csi2() {
 setup_mipi_cameras() {
     [ "$NUM_MIPI" -eq 0 ] && return 0
     echo -e "\nConfiguring direct MIPI cameras..."
-    local i model cam csi2 node fmt size s sid detected pixfmt w h ipu
+    local i model cam csi2 node vid_node fmt size s sid detected pixfmt w h ipu
     for ((i = 0; i < NUM_MIPI; i++)); do
         model=${MIPI_MODEL[$i]}
         cam=${MIPI_BA[$i]}
         csi2=${MIPI_CSI2[$i]}
         node=${MIPI_CAP[$i]}
+	vid_node=$(( nodes + VID_DEV_OFFSET ))
         s=$(fixed_stream_for_model "$model") \
             || die "no stream configuration for MIPI${i} $model"
         sid=${STREAM_NODE[$s]}
         detected=$(sensor_active_format "$model" "$cam" "$s" "$sid") || \
             die "cannot read active format from MIPI${i} ${model} sensor"
         read -r fmt size <<<"$detected"
-        echo "  ${MIPI_PREFIX[$i]} $cam -> $csi2 -> /dev/video$node ($fmt/$size)"
+        echo "  ${MIPI_PREFIX[$i]} $cam -> $csi2 -> /dev/video$vid_node ($fmt/$size)"
         mc_v "\"${MIPI_PREFIX[$i]} ${cam}\":0 [fmt:${fmt}/${size} field:none]"
         mc_v "\"${csi2}\":0 [fmt:${fmt}/${size} field:none]"
         mc_v "\"${csi2}\":1 [fmt:${fmt}/${size} field:none]"
@@ -541,7 +546,7 @@ setup_mipi_cameras() {
         w=${size%x*}
         h=${size#*x}
         [ -n "$pixfmt" ] &&
-            v4l2-ctl -d "/dev/video${node}" \
+            v4l2-ctl -d "/dev/video${vid_node}" \
                 --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
                 >/dev/null
     done
@@ -598,11 +603,12 @@ detect_gmsl_csi2() {
 
 print_topology() {
     echo "Discovered topology:"
-    local d l key
+    local d l key vid_node
     for ((d = 0; d < NUM_DES; d++)); do
+	vid_node=$(( CAPTURE_BASE[$d] + VID_DEV_OFFSET ))
         printf "  DES%d  %-34s %s %s -> %s (capture base /dev/video%s)\n" \
             "$d" "${DES_PATH[$d]}" "${DES_PREFIX_NAME[$d]}" "${DES_BA[$d]}" \
-            "${IPU_CSI2_ENTITY[$d]}" "${CAPTURE_BASE[$d]}"
+            "${IPU_CSI2_ENTITY[$d]}" "$vid_node"
         for l in ${LINKS_OF[$d]}; do
             key="${d}_${l}"
             printf "    SER%d  %-34s %s %s\n" \
@@ -613,9 +619,10 @@ print_topology() {
         done
     done
     for ((i = 0; i < NUM_MIPI; i++)); do
+	vid_node=$(( MIPI_CAP[$i] + VID_DEV_OFFSET ))
         printf "  MIPI%d  %s %s -> %s (capture /dev/video%s)\n" \
             "$i" "${MIPI_PREFIX[$i]}" "${MIPI_BA[$i]}" \
-            "${MIPI_CSI2[$i]}" "${MIPI_CAP[$i]}"
+            "${MIPI_CSI2[$i]}" "$vid_node"
     done
     echo ""
 }
@@ -1236,10 +1243,11 @@ for k in "${!CFG_LINKS[@]}"; do
     for s in ${CFG_STREAMS[$k]}; do
         csi2_pad=${CSI2_PAD["${k}_${s}"]}
         node=$(( CAPTURE_BASE[d] + csi2_pad ))
+        vid_node=$(( node + VID_DEV_OFFSET ))
         printf "                 Stream          %-8s %-10s %-12s %7s FPS -->  /dev/video%s\n" \
             "[${s}]" "${CFG_STREAM_SIZE["${k}_${s}"]}" \
             "${CFG_STREAM_FMT["${k}_${s}"]}" \
-            "${CFG_STREAM_FPS["${k}_${s}"]}" "$node"
+            "${CFG_STREAM_FPS["${k}_${s}"]}" "$vid_node"
     done
 done
 
@@ -1393,14 +1401,15 @@ for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     for s in ${CFG_STREAMS[$k]}; do
         node=$(( CAPTURE_BASE[d] + CSI2_PAD["${k}_${s}"] ))
+        vid_node=$(( node + VID_DEV_OFFSET ))
         pixfmt=${CFG_STREAM_PIXFMT["${k}_${s}"]}
         [ -z "$pixfmt" ] && continue
         size=${CFG_STREAM_SIZE["${k}_${s}"]}
         w=${size%x*}
         h=${size#*x}
-        v4l2-ctl -d "/dev/video${node}" \
+        v4l2-ctl -d "/dev/video${vid_node}" \
             --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
-            >/dev/null || die "cannot set /dev/video${node} to ${pixfmt} ${size}"
+            >/dev/null || die "cannot set /dev/video${vid_node} to ${pixfmt} ${size}"
     done
 done
 
