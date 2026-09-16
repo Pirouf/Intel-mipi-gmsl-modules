@@ -1,0 +1,51 @@
+From 16e68326613934f20ce2875bfb79e1a1d6c9767b Mon Sep 17 00:00:00 2001
+From: Arun T <arun.t@intel.com>
+Date: Wed, 16 Sep 2026 06:38:49 -0700
+Subject: [PATCH 111/111] media: intel: ipu7: move debugfs field to end of
+ ipu7_device
+
+The external IPU7 PSYS module reads adev->isp->ipu7_bus_ready_to_probe
+from struct ipu7_device shared with the core IPU7 driver.
+
+struct ipu7_device currently places ipu7_dir under #ifdef CONFIG_DEBUG_FS
+before hw_ver / ipc_reinit / secure_mode / ipu7_bus_ready_to_probe.
+When core and PSYS builds differ in CONFIG_DEBUG_FS, field offsets diverge,
+which can make PSYS observe an incorrect ipu7_bus_ready_to_probe value and
+remain in deferred probe.
+
+Move the debugfs-only member ipu7_dir to the end of struct ipu7_device
+so offsets of functional fields stay stable regardless of CONFIG_DEBUG_FS.
+
+This fixes false PSYS defer where core reports bus ready while PSYS still
+reads not-ready from the same isp object.
+
+Signed-off-by: Arun T <arun.t@intel.com>
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.h b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.h
+index 41f3efd..b48bc1d 100644
+--- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.h
++++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7.h
+@@ -81,13 +81,13 @@ struct ipu7_device {
+ 
+ 	void __iomem *base;
+ 	void __iomem *pb_base;
+-#ifdef CONFIG_DEBUG_FS
+-	struct dentry *ipu7_dir;
+-#endif
+ 	u8 hw_ver;
+ 	bool ipc_reinit;
+ 	bool secure_mode;
+ 	bool ipu7_bus_ready_to_probe;
++#ifdef CONFIG_DEBUG_FS
++	struct dentry *ipu7_dir;
++#endif
+ };
+ 
+ #define IPU_DMA_MASK			39
+-- 
+2.43.0
+

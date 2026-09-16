@@ -1,0 +1,50 @@
+From 9063b5781c5eee25acd3f34ddb826b2b3ba6ee60 Mon Sep 17 00:00:00 2001
+From: Arun T <arun.t@intel.com>
+Date: Wed, 16 Sep 2026 06:34:24 -0700
+Subject: [PATCH 109/111] media:ipu7: register psys node before add device
+
+Reordering bus and auxiliary driver registration as required by v7.1 code logic
+
+Signed-off-by: Arun T <arun.t@intel.com>
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ .../media/pci/intel/ipu7/psys/ipu-psys.c      | 23 ++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/psys/ipu-psys.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/psys/ipu-psys.c
+index b5ff06a..6ae5598 100644
+--- a/ipu7-drivers/drivers/media/pci/intel/ipu7/psys/ipu-psys.c
++++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/psys/ipu-psys.c
+@@ -1539,7 +1539,28 @@ static struct auxiliary_driver ipu7_psys_driver = {
+ 	},
+ };
+ 
+-module_auxiliary_driver(ipu7_psys_driver);
++static int __init ipu7_psys_init(void)
++{
++	int ret;
++
++	ret = bus_register(&ipu7_psys_bus);
++	if (ret)
++		return ret;
++
++	ret = auxiliary_driver_register(&ipu7_psys_driver);
++	if (ret)
++		bus_unregister(&ipu7_psys_bus);
++
++	return ret;
++}
++module_init(ipu7_psys_init);
++
++static void __exit ipu7_psys_exit(void)
++{
++	auxiliary_driver_unregister(&ipu7_psys_driver);
++	bus_unregister(&ipu7_psys_bus);
++}
++module_exit(ipu7_psys_exit);
+ 
+ MODULE_AUTHOR("Bingbu Cao <bingbu.cao@intel.com>");
+ MODULE_AUTHOR("Qingwu Zhang <qingwu.zhang@intel.com>");
+-- 
+2.43.0
+
