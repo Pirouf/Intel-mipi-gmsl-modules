@@ -248,7 +248,7 @@ for camera in $mux_list; do
 	out $media_ctl_cmd -V "$(des_src_pad ${camera})/${streamid} ${fmt}"
 
 	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":0/${streamid} ${fmt}"
-	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1))/${streamid} ${fmt}"
+	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1))/0 ${fmt}"
 
 	cap_dev=$($media_ctl_cmd -e "Intel ${cap_prefix} ISYS Capture ${isys_cap}")
 	dev_ln="/dev/video-${sensor}-${camera}"
