@@ -18,8 +18,13 @@ RUNTIME_KERNEL_VER=$(uname -r)
 #This variable is required to address includes from videodev.ko
 srctree=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build
 
+KERNEL_SKIP_MAXIM_SERDES=0
+if [[ "$SKIP_MAXIM_SERDES" == "1" ]]; then
+KERNEL_SKIP_MAXIM_SERDES=1
+fi
+
 #We will invoke multiple make directives to build all the required kernel modules, then manually copy them to the staged directory for dkms install rule
-MAKE="if [ '${RUNTIME_KERNEL_VER}' == '${kernelver}' ] && [ -f $kernel_source_dir/tools/bpf/resolve_btfids/resolve_btfids ] && [ -f /sys/kernel/btf/vmlinux ]; then ln -s /sys/kernel/btf/vmlinux $kernel_source_dir/vmlinux; fi ;make V=1 KERNELRELEASE=$kernelver DRIVER_VERSION_SUFFIX='${VERSION_SUFFIX}' CFLAGS_MODULE=\"$(echo $MAKE_OPTS)\" KERNEL_SRC=$kernel_source_dir"
+MAKE="if [ '${RUNTIME_KERNEL_VER}' == '${kernelver}' ] && [ -f $kernel_source_dir/tools/bpf/resolve_btfids/resolve_btfids ] && [ -f /sys/kernel/btf/vmlinux ]; then ln -s /sys/kernel/btf/vmlinux $kernel_source_dir/vmlinux; fi; echo \"SKIP_MAXIM_SERDES=${KERNEL_SKIP_MAXIM_SERDES}\" ;make V=1 KERNELRELEASE=$kernelver DRIVER_VERSION_SUFFIX='${VERSION_SUFFIX}' CFLAGS_MODULE=\"$(echo $MAKE_OPTS)\" KERNEL_SRC=$kernel_source_dir"
 
 MAKE_MATCH[1]="^(7\.([0])\.)|^(6.1[278])"
 
@@ -33,8 +38,7 @@ BUILD_EXCLUSIVE_CONFIG="CONFIG_VIDEO_V4L2_I2C"
 # 6.12-intel and 6.17-intel kernels typically ship with CONFIG_I2C_ATR disabled, so
 # users must rebuild those Intel LTS kernels with CONFIG_I2C_ATR=y to use maxim-serdes.
 # Skip on 6.12 and 6.17. 6.18 and newer are allowed.
-KERNEL_SKIP_MAXIM_SERDES=0
-if { [ $(echo "$SKIP_MAXIM_SERDES") -eq 1 ]; } || { [ "$KERNEL_VER" -eq 6 ] && { [ "$KERNEL_PATCH" -eq 12 ] || [ "$KERNEL_PATCH" -eq 17 ]; } && echo "$kernelver" | grep -q -- '-intel'; } then
+if { [ "$KERNEL_VER" -eq 6 ] && { [ "$KERNEL_PATCH" -eq 12 ] || [ "$KERNEL_PATCH" -eq 17 ]; } && echo "$kernelver" | grep -q -- '-intel'; } then
 KERNEL_SKIP_MAXIM_SERDES=1
 fi
 
