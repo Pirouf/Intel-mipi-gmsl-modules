@@ -175,6 +175,14 @@ acpi_children_of() {
     done | sort -u
 }
 
+# debug mc commands output 
+quiet=1
+out() {
+  [[ $quiet -eq 0 ]] && echo -n "${@}    " >&2
+  "${@}"
+  [[ $quiet -eq 0 ]] && echo "        RET=$?" >&2
+}
+
 # HID/UID of an ACPI sysfs dir
 acpi_hid() { cat "$1/hid" 2>/dev/null; }
 
@@ -562,6 +570,17 @@ stream_valid_for_model() {
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 # -------- main ----------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		-v|--verbose)
+			quiet=0
+			shift
+		;;
+		*)
+			shift
+		;;
+		esac
+done
 
 discover || exit 1
 detect_csi2_entities || exit 1
@@ -744,8 +763,8 @@ for k in "${!CFG_LINKS[@]}"; do
             done
             mux_routes=$(IFS=,; echo "${mux_route_parts[*]}")
 
-            media-ctl -l "\"DS5 mux ${cam}\":0 -> \"${ser_pfx} ${ser}\":${p}[1]"
-            media-ctl -R "\"DS5 mux ${cam}\" [${mux_routes}]"
+            out media-ctl -l "\"DS5 mux ${cam}\":0 -> \"${ser_pfx} ${ser}\":${p}[1]"
+            out media-ctl -R "\"DS5 mux ${cam}\" [${mux_routes}]"
 
             unset is_selected
             ;;
@@ -755,7 +774,7 @@ for k in "${!CFG_LINKS[@]}"; do
     # stream (src_base + idx). Accumulated so multi-PHY serializers are
     # programmed exactly once.
     for idx in $(seq 0 $((n - 1))); do
-        SER_ROUTES[$key]+="${SER_ROUTES[$key]:+,}${p}/${idx}->${ser_src_pad}/$((src_base + idx))[1]"
+        SER_ROUTES[$key]+="${SER_ROUTES[$key]:+,}${p}/${p}->${ser_src_pad}/$((src_base + idx))[1]"
     done
 
     for idx in "${!sel_streams[@]}"; do
@@ -769,14 +788,14 @@ done
 
 # Apply per-serializer route tables (once per serializer, before any -V).
 for key in "${!SER_ROUTES[@]}"; do
-    media-ctl -R "\"${SER_PFX[$key]} ${SER_BA[$key]}\" [${SER_ROUTES[$key]}]"
+    out media-ctl -R "\"${SER_PFX[$key]} ${SER_BA[$key]}\" [${SER_ROUTES[$key]}]"
 done
 
 # Apply per-DES route tables.
 for ((d = 0; d < NUM_DES; d++)); do
     [ -n "${DES_ROUTES[$d]:-}" ] || continue
-    media-ctl -R "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\" [${DES_ROUTES[$d]}]"
-    media-ctl -R "\"${IPU_CSI2_ENTITY[$d]}\" [${CSI2_ROUTES[$d]}]"
+    out media-ctl -R "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\" [${DES_ROUTES[$d]}]"
+    out media-ctl -R "\"${IPU_CSI2_ENTITY[$d]}\" [${CSI2_ROUTES[$d]}]"
 done
 
 # CSI2 source pad -> ISYS Capture entity link (must exist before formats flow).
@@ -787,7 +806,7 @@ for k in "${!CFG_LINKS[@]}"; do
     for idx in "${!sel_streams[@]}"; do
         csi2_pad=$(( csi2_base + idx ))
         node=$(( CAPTURE_BASE[d] + csi2_pad ))
-        media-ctl -l "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1)) -> \"${IPU_BASE[$d]} ISYS Capture ${node}\":0[1]"
+        out media-ctl -l "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1)) -> \"${IPU_BASE[$d]} ISYS Capture ${node}\":0[1]"
     done
 done
 
@@ -816,21 +835,21 @@ for k in "${!CFG_LINKS[@]}"; do
 
         case "$model" in
             d4xx)
-                media-ctl -V "\"D4XX ${s} ${cam}\":0 [fmt:${fmt}/${size} field:none]"
+                out media-ctl -V "\"D4XX ${s} ${cam}\":0 [fmt:${fmt}/${size} field:none]"
                 ;;
             isx031)
-                media-ctl -V "\"isx031 ${cam}\":0/${idx} [fmt:${fmt}/${size} field:none]"
+                out media-ctl -V "\"isx031 ${cam}\":0/${idx} [fmt:${fmt}/${size} field:none]"
                 ;;
             ar0234)
-                media-ctl -V "\"ar0234 ${cam}\":0/${idx} [fmt:${fmt}/${size} field:none]"
+                out media-ctl -V "\"ar0234 ${cam}\":0/${p} [fmt:${fmt}/${size} field:none]"
                 ;;
         esac
-        media-ctl -V "\"${ser_pfx} ${ser}\":${p}/${idx} [fmt:${fmt}/${size} field:none]"
-        media-ctl -V "\"${ser_pfx} ${ser}\":${ser_src_pad}/${src_stream} [fmt:${fmt}/${size} field:none]"
-        media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${l}/${src_stream} [fmt:${fmt}/${size} field:none]"
-        media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${DES_SRC_PAD[$d]}/${csi2_pad} [fmt:${fmt}/${size} field:none]"
-        media-ctl -V "\"${IPU_CSI2_ENTITY[$d]}\":0/${csi2_pad} [fmt:${fmt}/${size} field:none]"
-        media-ctl -V "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1))/0 [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${ser_pfx} ${ser}\":${p}/${p} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${ser_pfx} ${ser}\":${ser_src_pad}/${src_stream} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${l}/${src_stream} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${DES_SRC_PAD[$d]}/${csi2_pad} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${IPU_CSI2_ENTITY[$d]}\":0/${csi2_pad} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1))/0 [fmt:${fmt}/${size} field:none]"
     done
 done
 
