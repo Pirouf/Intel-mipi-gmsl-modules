@@ -471,7 +471,26 @@ struct ar0234 {
 	ar0234_platform_data *platform_data;
 	u8 lanes;
 	bool streaming;
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	bool routing_initialized;
+#endif
 };
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+static unsigned int ar0234_g_stream(struct v4l2_subdev *sd)
+{
+	unsigned int len = strlen(sd->name);
+	if (len >= 4 &&
+	    (strncmp(sd->name + len - 4, "0010", 4) ||
+	     !strncmp(sd->name, "ar0234 e", 8) ||
+	     !strncmp(sd->name, "ar0234 f", 8) ||
+	     !strncmp(sd->name, "ar0234 g", 8) ||
+	     !strncmp(sd->name, "ar0234 h", 8)))
+		return 1;
+	else
+		return 0;
+}
+#endif
 
 static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -484,7 +503,19 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 	int ret;
 
 	state = v4l2_subdev_get_locked_active_state(&ar0234->sd);
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct v4l2_subdev *sd = &ar0234->sd;
+	unsigned int streamid = ar0234_g_stream(sd);
+	format = v4l2_subdev_state_get_format(state, 0, streamid);
+	if (!format) {
+		dev_warn(&client->dev, "Failed to get %s format for pad %u/%u \n",
+			 sd->name, 0, streamid);
+		return -EINVAL;
+
+	}
+#else
 	format = v4l2_subdev_state_get_format(state, 0);
+#endif
 
 	/* Propagate change of current control to all related controls */
 	if (ctrl->id == V4L2_CID_VBLANK) {
@@ -804,7 +835,7 @@ static int ar0234_set_format(struct v4l2_subdev *sd,
 	struct v4l2_rect *crop;
 	const struct ar0234_mode *mode;
 	s64 hblank;
-	int ret;
+	int ret=0;
 
 	mode = v4l2_find_nearest_size(supported_modes,
 				      ARRAY_SIZE(supported_modes),
@@ -812,12 +843,46 @@ static int ar0234_set_format(struct v4l2_subdev *sd,
 				      fmt->format.width,
 				      fmt->format.height);
 
+	dev_dbg(&client->dev,
+		"%s(): fmt->pad/stream: %u/%u@0x%x/%ux%u\n",__func__,
+		fmt->pad, fmt->stream,
+		fmt->format.code,
+		fmt->format.width,
+		fmt->format.height);
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	if (!sd_state) {
+		ret = -EINVAL;
+		goto ar0234_s_fmt_state_end;
+	}
+
+	if (fmt->pad) {
+		ret = -EINVAL;
+		goto ar0234_s_fmt_state_end;
+	}
+
+	crop = v4l2_subdev_state_get_crop(sd_state, fmt->pad, fmt->stream);
+#else
 	crop = v4l2_subdev_state_get_crop(sd_state, fmt->pad);
+#endif
 	crop->width = mode->width;
 	crop->height = mode->height;
 
 	ar0234_update_pad_format(mode, &fmt->format);
+
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct v4l2_mbus_framefmt *mf;
+	mf = v4l2_subdev_state_get_format(sd_state, fmt->pad, fmt->stream);
+	if (!mf) {
+		dev_warn(&client->dev, "Failed to get %s format for pad %u/%u \n",
+			 sd->name, fmt->pad, fmt->stream);
+		ret = -EINVAL;
+		goto ar0234_s_fmt_state_end;
+	}
+	*mf = fmt->format;
+#else
 	*v4l2_subdev_state_get_format(sd_state, fmt->pad) = fmt->format;
+#endif
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
 		return 0;
@@ -847,7 +912,12 @@ static int ar0234_set_format(struct v4l2_subdev *sd,
 		return ret;
 	}
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+ar0234_s_fmt_state_end:
+	return ret;
+#else
 	return 0;
+#endif
 }
 
 static int ar0234_enum_mbus_code(struct v4l2_subdev *sd,
@@ -884,6 +954,7 @@ static int ar0234_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *state,
 				struct v4l2_subdev_selection *sel)
 {
+
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
@@ -894,7 +965,11 @@ static int ar0234_get_selection(struct v4l2_subdev *sd,
 		break;
 
 	case V4L2_SEL_TGT_CROP:
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+		sel->r = *v4l2_subdev_state_get_crop(state, 0, sel->stream);
+#else
 		sel->r = *v4l2_subdev_state_get_crop(state, 0);
+#endif
 		break;
 
 	case V4L2_SEL_TGT_NATIVE_SIZE:
@@ -924,6 +999,64 @@ static int ar0234_init_state(struct v4l2_subdev *sd,
 		},
 	};
 
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct ar0234 *ar0234 = to_ar0234(sd);
+	if (ar0234->routing_initialized)
+		return 0;
+
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	unsigned int streamid = ar0234_g_stream(sd);
+
+	struct v4l2_subdev_route routes[] = {
+		{
+			.sink_pad = 0,
+			.sink_stream = streamid,
+			.source_pad = 0,
+			.source_stream = streamid,
+			.flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE,
+		},
+	};
+
+	struct v4l2_subdev_krouting routing = {
+		.num_routes = ARRAY_SIZE(routes),
+		.routes = routes,
+	};
+
+	// set default stream
+	fmt.stream = streamid;
+
+	dev_dbg(&client->dev, "%s(): default route %s on streamid=%u",__func__,
+		sd->name, streamid);
+
+	/* Needed by v4l2_subdev_s_stream_helper(), even with 1 stream only
+	*/
+	int ret = v4l2_subdev_set_routing(sd, sd_state, &routing);
+	if (ret) {
+		dev_warn(&client->dev, "%s(): failed to set default route on %s\n",
+			__func__, sd->name);
+		return ret;
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+	struct v4l2_subdev_route *route;
+	for_each_active_route(&sd_state->routing, route) {
+		struct v4l2_mbus_framefmt *mf;
+
+		mf = v4l2_subdev_state_get_format(sd_state, route->source_pad,
+						   route->source_stream);
+		*mf = fmt.format;
+	}
+#else
+	struct v4l2_subdev_stream_configs *stream_configs;
+	unsigned int i;
+	stream_configs = &state->stream_configs;
+
+	for (i = 0; i < stream_configs->num_configs; i++) {
+		stream_configs->configs[i].fmt = fmt.format;
+	}
+#endif
+	ar0234->routing_initialized = true;
+#endif
 	ar0234_set_format(sd, sd_state, &fmt);
 
 	return 0;
@@ -933,6 +1066,11 @@ static int ar0234_enable_streams(struct v4l2_subdev *subdev,
        struct v4l2_subdev_state *state,
        u32 pad, u64 streams_mask)
 {
+
+	struct i2c_client *client = v4l2_get_subdevdata(subdev);
+	dev_dbg(&client->dev, "%s(): enable: name=%s pad=%u streams_mask=%llu\n",
+		__func__, subdev->name, pad, streams_mask);
+
 	return ar0234_set_stream(subdev, true);
 }
 
@@ -940,6 +1078,11 @@ static int ar0234_disable_streams(struct v4l2_subdev *subdev,
         struct v4l2_subdev_state *state,
         u32 pad, u64 streams_mask)
 {
+
+	struct i2c_client *client = v4l2_get_subdevdata(subdev);
+	dev_dbg(&client->dev, "%s(): disable: name=%s pad=%u streams_mask=%llu\n",
+		__func__, subdev->name, pad, streams_mask);
+
 	return ar0234_set_stream(subdev, false);
 }
 
@@ -949,45 +1092,33 @@ static int ar0234_get_frame_desc(struct v4l2_subdev *sd,
         unsigned int pad, struct v4l2_mbus_frame_desc *desc)
 {
         struct ar0234 *ar0234 = to_ar0234(sd);
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+#endif
 	
         desc->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
         desc->num_entries = 0;
 
+	desc->entry[desc->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
 #if IS_ENABLED(CONFIG_VIDEO_ZEDX)
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	if (!strncmp(sd->name, "ar0234 e", 8) ||
-	    !strncmp(sd->name, "ar0234 f", 8) ||
-	    !strncmp(sd->name, "ar0234 g", 8) ||
-	    !strncmp(sd->name, "ar0234 h", 8)) {
-
-		desc->entry[desc->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
-		desc->entry[desc->num_entries].stream = 1;
-		desc->entry[desc->num_entries].pixelcode = ar0234->cur_mode->code;
-		desc->entry[desc->num_entries].length = 0;
-#ifdef CONFIG_VIDEO_MAX9295_VC0_REMAP
-		desc->entry[desc->num_entries].bus.csi2.vc = 1;
+	/*
+	 * Append stream assignment: if the I2C subdevice address
+	 * is not default 0x10 (secondary sensor), route via CSI-2 stream 1.
+	 */
+	desc->entry[desc->num_entries].stream = ar0234_g_stream(sd);
 #else
-		desc->entry[desc->num_entries].bus.csi2.vc = 0;
+	desc->entry[desc->num_entries].stream = 0;
 #endif
-		desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
-
-		dev_dbg(&client->dev, "%s: set %s csi dt/vc=0x%x/0x%x",__func__,
-			sd->name,
-			desc->entry[desc->num_entries].bus.csi2.dt,
-			desc->entry[desc->num_entries].bus.csi2.vc);
-
-		desc->num_entries++;
-	} else {
-#endif
-		desc->entry[desc->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
-		desc->entry[desc->num_entries].stream = 0;
-		desc->entry[desc->num_entries].pixelcode = ar0234->cur_mode->code;
-		desc->entry[desc->num_entries].length = 0;
-		desc->entry[desc->num_entries].bus.csi2.vc = 0;
-		desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
-		desc->num_entries++;
+	desc->entry[desc->num_entries].pixelcode = ar0234->cur_mode->code;
+	desc->entry[desc->num_entries].length = 0;
+	desc->entry[desc->num_entries].bus.csi2.vc = 0;
+	desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
+	desc->num_entries++;
 #if IS_ENABLED(CONFIG_VIDEO_ZEDX)
-	}
+	dev_dbg(&client->dev, "%s: set %s csi dt/vc=0x%x/0x%x",__func__,
+		sd->name,
+		desc->entry[desc->num_entries].bus.csi2.dt,
+		desc->entry[desc->num_entries].bus.csi2.vc);
 #endif
         return 0;
 }
@@ -1141,6 +1272,9 @@ static int ar0234_probe(struct i2c_client *client)
 	ar0234->sd.internal_ops = &ar0234_internal_ops;
 	ar0234->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
 			    V4L2_SUBDEV_FL_HAS_EVENTS;
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	ar0234->sd.flags |= V4L2_SUBDEV_FL_STREAMS;
+#endif
 	ar0234->sd.entity.ops = &ar0234_subdev_entity_ops;
 	ar0234->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
