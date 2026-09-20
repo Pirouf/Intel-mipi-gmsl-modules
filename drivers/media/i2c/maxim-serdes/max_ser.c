@@ -110,6 +110,7 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
 		      u64 streams_mask)
 {
 	unsigned int i;
+	struct max_ser_priv *priv = ser->priv;
 
 	for (i = 0; i < ser->ops->num_pipes; i++) {
 		struct max_ser_pipe *pipe = &ser->pipes[i];
@@ -120,6 +121,13 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
 		if (streams_mask && pipe->preset_vcs &&
 		    !(pipe->preset_vcs & streams_mask))
 			continue;
+
+		dev_dbg(priv->dev,
+			"find_phy_pipe: pipe%c phy_id=%u, preset_vcs=%u, streams_mask=%x\n",
+			i == 3 ? 'U' : 'X' + i,
+			pipe->phy_id,
+			pipe->preset_vcs,
+			streams_mask);
 
 		return pipe;
 	}
