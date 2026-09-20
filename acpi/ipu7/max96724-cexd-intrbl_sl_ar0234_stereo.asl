@@ -75,6 +75,20 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
             #define CAM_ALIAS 0x66, 0x67
             #define CAM_LANES 2
             #include "_des_ch_common_zedx.asl"
+            #undef DESCH_LINK_NUM
+            #undef DESCH_CH
+            #undef DESCH_SER
+            #undef DESCH_SER_I2C
+            #undef DESCH_CH_PATH
+            #undef DESCH_SER_PATH
+            #undef DESCH_SER_REF
+            #undef DESCH_SER_GPIOREF
+            #undef DESCH_RESET_GPIO_PIN
+            #undef DESCH_RESET_GPIO_PIN2
+            #undef DESCH_SER_X_VC
+            #undef DESCH_SER_Y_VC
+            #undef CAM_ALIAS
+            #undef CAM_LANES
 
             // Channel 2 is not populated
 
