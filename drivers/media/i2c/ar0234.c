@@ -1049,7 +1049,7 @@ static int ar0234_init_state(struct v4l2_subdev *sd,
 #else
 	struct v4l2_subdev_stream_configs *stream_configs;
 	unsigned int i;
-	stream_configs = &state->stream_configs;
+	stream_configs = &sd_state->stream_configs;
 
 	for (i = 0; i < stream_configs->num_configs; i++) {
 		stream_configs->configs[i].fmt = fmt.format;
