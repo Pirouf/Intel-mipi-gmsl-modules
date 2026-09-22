@@ -115,15 +115,15 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
 	for (i = 0; i < ser->ops->num_pipes; i++) {
 		struct max_ser_pipe *pipe = &ser->pipes[i];
 
-		if (pipe->phy_id != phy->index)
-			continue;
-
 		if (streams_mask && pipe->preset_vcs &&
 		    !(pipe->preset_vcs & streams_mask))
 			continue;
 
+		if (pipe->phy_id != phy->index)
+			pipe->phy_id = phy->index;
+
 		dev_dbg(priv->dev,
-			"find_phy_pipe: pipe%c phy_id=%u, preset_vcs=%u, streams_mask=%x\n",
+			"%s(): pipe%c phy_id=%u, preset_vcs=0x%x, streams_mask=0x%x\n",__func__,
 			i == 3 ? 'U' : 'X' + i,
 			pipe->phy_id,
 			pipe->preset_vcs,
@@ -137,8 +137,15 @@ max_ser_find_phy_pipe(struct max_ser *ser, struct max_ser_phy *phy,
 	for (i = 0; i < ser->ops->num_pipes; i++) {
 		struct max_ser_pipe *pipe = &ser->pipes[i];
 
-		if (pipe->phy_id == phy->index)
+		if (pipe->phy_id == phy->index) {
+
+			dev_dbg(priv->dev,
+				"%s(): pipe%c phy_id=%u\n",__func__,
+				i == 3 ? 'U' : 'X' + i,
+				pipe->phy_id);
+
 			return pipe;
+		}
 	}
 
 	return NULL;
