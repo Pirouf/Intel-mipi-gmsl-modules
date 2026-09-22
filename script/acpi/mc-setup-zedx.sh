@@ -186,6 +186,52 @@ out() {
 # HID/UID of an ACPI sysfs dir
 acpi_hid() { cat "$1/hid" 2>/dev/null; }
 
+# Return the MAX96724 sink pad used by a serializer's immutable media link.
+# ACPI CHxx names are namespace labels; the immutable media link is the
+# authoritative mapping to the deserializer's physical GMSL link.
+media_des_sink_pad() {
+    local des_entity=$1 ser_entity=$2 topo
+    topo=$(media-ctl -p 2>/dev/null) || return 1
+
+    awk -v ser="$ser_entity" -v des="$des_entity" '
+        /^- entity / { in_ser=0 }
+        index($0, "- entity") && index($0, ": " ser " (") {
+            in_ser=1
+            next
+        }
+        in_ser && index($0, "-> \"" des "\":") {
+            line=$0
+            sub(/^.*-> "[^"]+":/, "", line)
+            sub(/ .*/, "", line)
+            print line
+            exit
+        }
+    ' <<<"$topo"
+}
+
+# Return the serializer sink pad used by a camera's immutable media link.
+# This must be discovered from the graph because a board can wire camera order
+# differently from the serializer's physical CSI input order.
+media_ser_sink_pad() {
+    local ser_entity=$1 cam_entity=$2 topo
+    topo=$(media-ctl -p 2>/dev/null) || return 1
+
+    awk -v cam="$cam_entity" -v ser="$ser_entity" '
+        /^- entity / { in_cam=0 }
+        index($0, "- entity") && index($0, ": " cam " (") {
+            in_cam=1
+            next
+        }
+        in_cam && index($0, "-> \"" ser "\":") {
+            line=$0
+            sub(/^.*-> "[^"]+":/, "", line)
+            sub(/ .*/, "", line)
+            print line
+            exit
+        }
+    ' <<<"$topo"
+}
+
 # -------- topology discovery --------------------------------------------------
 
 # Maximum number of links (CHxx) we consider per deserializer, keyed by the
@@ -233,6 +279,7 @@ declare -A SER_HID_ARR=() SER_PFX=() SER_NPHYS=()
 declare -A CAM_PATH=()
 declare -A CAM_BA=()
 declare -A CAM_HID=() CAM_MODEL=() CAM_PREFIX=()
+declare -A CAM_SER_PAD=()
 # PHYS_OF[d_l] holds a space-separated list of valid PHY indices on a link.
 declare -A PHYS_OF=()
 # LINKS_OF[d] holds a space-separated list of valid link indices on DES d.
@@ -258,7 +305,7 @@ discover_one_des() {
     DES_MAX_LINKS[$d]=${MAX_LINKS_BY_PREFIX[$des_prefix]:-4}
 
     local i ch ser_path ser_dir ser_hid cam_path cam_dir cam_hid ch_name key
-    local ser_pfx ser_ba nphys cam_paths subch cp phys p cam_pfx cam_ba ckey cam_name
+    local ser_pfx ser_ba nphys cam_paths subch cp phys p cam_pfx cam_ba ckey cam_name ser_pad
     local found=0
     local links=""
     while IFS= read -r ch; do
@@ -271,11 +318,6 @@ discover_one_des() {
             echo "WARN: DES${d}: cannot parse channel index from '$ch'; skipping" >&2
             continue
         fi
-        if (( i >= DES_MAX_LINKS[d] )); then
-            echo "WARN: DES${d}: link ${i} (${ch}) exceeds max supported links (${DES_MAX_LINKS[$d]}) for ${des_prefix}; skipping" >&2
-            continue
-        fi
-        key="${d}_${i}"
 
         ser_path=$(acpi_children_of "$ch" | head -1)
         [ -z "$ser_path" ] && {
@@ -296,6 +338,15 @@ discover_one_des() {
             echo "WARN: DES${d} link ${i}: serializer at $ser_path has no v4l-subdev (driver loaded?); skipping" >&2
             continue
         }
+        i=$(media_des_sink_pad "${des_prefix} ${des_ba}" "${ser_pfx} ${ser_ba}") || {
+            echo "WARN: DES${d}: cannot resolve physical link for serializer '${ser_pfx} ${ser_ba}'; skipping" >&2
+            continue
+        }
+        if [[ ! $i =~ ^[0-9]+$ ]] || (( i >= DES_MAX_LINKS[d] )); then
+            echo "WARN: DES${d}: resolved link '${i}' for ${ser_pfx} ${ser_ba} is invalid; skipping" >&2
+            continue
+        fi
+        key="${d}_${i}"
         nphys=${SER_NUM_PHYS[$ser_hid]:-1}
 
         # Enumerate the serializer's camera-facing PHYs. A single-PHY serializer
@@ -337,12 +388,17 @@ discover_one_des() {
                 echo "WARN: DES${d} link ${i} PHY ${p}: camera at $cam_path has no v4l-subdev (driver loaded?); skipping" >&2
                 p=$((p + 1)); continue
             }
+            ser_pad=$(media_ser_sink_pad "${ser_pfx} ${ser_ba}" "${cam_pfx} ${cam_ba}") || {
+                echo "WARN: DES${d} link ${i} PHY ${p}: cannot resolve serializer sink pad for '${cam_pfx} ${cam_ba}'; skipping" >&2
+                p=$((p + 1)); continue
+            }
             ckey="${key}_${p}"
             CAM_PATH[$ckey]=$cam_path
             CAM_PREFIX[$ckey]=$cam_pfx
             CAM_BA[$ckey]=$cam_ba
             CAM_HID[$ckey]=$cam_hid
             CAM_MODEL[$ckey]=${SENSOR_MODEL[$cam_hid]}
+            CAM_SER_PAD[$ckey]=$ser_pad
             phys+="${phys:+ }${p}"
             p=$((p + 1))
         done
@@ -740,7 +796,12 @@ for k in "${!CFG_LINKS[@]}"; do
     ser=${SER_BA[$key]}
     ser_pfx=${SER_PFX[$key]}
     ser_src_pad=${SER_NPHYS[$key]}
+    ser_sink_pad=${CAM_SER_PAD[$ckey]}
     src_base=${SRC_BASE[$ckey]}
+    ser_stream_base=$src_base
+    if [ "${SER_HID_ARR[$key]}" = INTC1140 ] && [ "$model" = ar0234 ]; then
+        ser_stream_base=$ser_sink_pad
+    fi
     csi2_base=${CSI2_BASE[$k]}
     sel_streams=(${CFG_STREAMS[$k]})
     n=${#sel_streams[@]}
@@ -770,18 +831,16 @@ for k in "${!CFG_LINKS[@]}"; do
             ;;
     esac
 
-    # Serializer routes: sink pad = PHY p, stream idx -> source pad = PHY count,
-    # stream (src_base + idx). Accumulated so multi-PHY serializers are
-    # programmed exactly once.
+    # MAX9295D pipe stream IDs follow the physical pipe/sink-pad index.
     for idx in $(seq 0 $((n - 1))); do
-        SER_ROUTES[$key]+="${SER_ROUTES[$key]:+,}${p}/${p}->${ser_src_pad}/$((src_base + idx))[1]"
+        SER_ROUTES[$key]+="${SER_ROUTES[$key]:+,}${ser_sink_pad}/${p}->${ser_src_pad}/$((ser_stream_base + idx))[1]"
     done
 
     for idx in "${!sel_streams[@]}"; do
         s=${sel_streams[$idx]}
         # CSI2 stream/pad index -- a per-DES running counter (see CSI2_BASE).
         csi2_pad=$(( csi2_base + idx ))
-        DES_ROUTES[$d]+="${DES_ROUTES[$d]:+,}${l}/$((src_base + idx))->${DES_SRC_PAD[$d]}/${csi2_pad}[1]"
+        DES_ROUTES[$d]+="${DES_ROUTES[$d]:+,}${l}/$((ser_stream_base + idx))->${DES_SRC_PAD[$d]}/${csi2_pad}[1]"
         CSI2_ROUTES[$d]+="${CSI2_ROUTES[$d]:+,}0/${csi2_pad}->$((csi2_pad + 1))/0[1]"
     done
 done
@@ -822,13 +881,18 @@ for k in "${!CFG_LINKS[@]}"; do
     ser=${SER_BA[$key]}
     ser_pfx=${SER_PFX[$key]}
     ser_src_pad=${SER_NPHYS[$key]}
+    ser_sink_pad=${CAM_SER_PAD[$ckey]}
     src_base=${SRC_BASE[$ckey]}
+    ser_stream_base=$src_base
+    if [ "${SER_HID_ARR[$key]}" = INTC1140 ] && [ "$model" = ar0234 ]; then
+        ser_stream_base=$ser_sink_pad
+    fi
     csi2_base=${CSI2_BASE[$k]}
     sel_streams=(${CFG_STREAMS[$k]})
 
     for idx in "${!sel_streams[@]}"; do
         s=${sel_streams[$idx]}
-        src_stream=$(( src_base + idx ))
+        src_stream=$(( ser_stream_base + idx ))
         csi2_pad=$(( csi2_base + idx ))
         fmt=$(stream_fmt "$s")
         size=$(stream_size "$s")
@@ -844,7 +908,7 @@ for k in "${!CFG_LINKS[@]}"; do
                 out media-ctl -V "\"ar0234 ${cam}\":0/${p} [fmt:${fmt}/${size} field:none]"
                 ;;
         esac
-        out media-ctl -V "\"${ser_pfx} ${ser}\":${p}/${p} [fmt:${fmt}/${size} field:none]"
+        out media-ctl -V "\"${ser_pfx} ${ser}\":${ser_sink_pad}/${p} [fmt:${fmt}/${size} field:none]"
         out media-ctl -V "\"${ser_pfx} ${ser}\":${ser_src_pad}/${src_stream} [fmt:${fmt}/${size} field:none]"
         out media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${l}/${src_stream} [fmt:${fmt}/${size} field:none]"
         out media-ctl -V "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${DES_SRC_PAD[$d]}/${csi2_pad} [fmt:${fmt}/${size} field:none]"
