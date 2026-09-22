@@ -45,6 +45,12 @@ fi
 # Derive the AML path next to the input ASL (iasl writes the AML in the
 # same directory as the input file, not in $PWD).
 AML="${1%.asl}.aml"
+AML_INSTALL_NAME="${AML_INSTALL_NAME:-$(basename "$AML")}"
+
+if [[ "$AML_INSTALL_NAME" == */* ]]; then
+    echo "ERROR: AML_INSTALL_NAME must be a file name, not a path" >&2
+    exit 1
+fi
 
 # Remove any stale outputs from a previous run so a failed recompile
 # cannot leave the old AML in place to be packaged below.
@@ -63,7 +69,7 @@ fi
 cd "$FW_BASE_DIR"
 mkdir -p "$DIR"
 rm -f "$DIR"/*
-cp "$ASL_DIR"/"$AML" "$FW_BASE_DIR"/"$DIR"
+cp "$ASL_DIR"/"$AML" "$FW_BASE_DIR"/"$DIR"/"$AML_INSTALL_NAME"
 find kernel | cpio -H newc --create > "$SSDT_IMG"
 
 if [ -f "$SSDT_IMG" ]; then
