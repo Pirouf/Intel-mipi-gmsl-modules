@@ -1113,14 +1113,14 @@ static int ar0234_get_frame_desc(struct v4l2_subdev *sd,
 	desc->entry[desc->num_entries].length = 0;
 	desc->entry[desc->num_entries].bus.csi2.vc = 0;
 	desc->entry[desc->num_entries].bus.csi2.dt = ar0234->cur_mode->datatype;
-	desc->num_entries++;
 #if IS_ENABLED(CONFIG_VIDEO_ZEDX)
 	dev_dbg(&client->dev, "%s: set %s csi dt/vc=0x%x/0x%x",__func__,
 		sd->name,
 		desc->entry[desc->num_entries].bus.csi2.dt,
 		desc->entry[desc->num_entries].bus.csi2.vc);
 #endif
-        return 0;
+	desc->num_entries++;
+	return 0;
 }
 #else
 static int ar0234_get_frame_desc(struct v4l2_subdev *sd,
@@ -1251,7 +1251,9 @@ static int ar0234_probe(struct i2c_client *client)
 	else if (ar0234->reset_gpio == NULL)
 		dev_warn(&client->dev, "Reset GPIO not found");
 	else {
-		dev_dbg(&client->dev, "Found reset GPIO");
+		/* desc_to_gpio returns the global GPIO integer namespace number */
+		int gpio_num = desc_to_gpio(ar0234->reset_gpio);
+		dev_dbg(&client->dev, "Found reset GPIO : %d", gpio_num);
 		ar0234_reset(ar0234->reset_gpio);
 	}
 
