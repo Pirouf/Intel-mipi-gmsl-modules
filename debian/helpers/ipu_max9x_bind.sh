@@ -202,6 +202,8 @@ for camera in $mux_list; do
 
 	csi2="$((${camera:2:1}))"
 	mux=${camera:0:1}
+	ser_input_streamid=${ser_streamid}
+	[[ ${sensor} = "ar0234" ]] && ser_input_streamid=1
 
 	echo "Bind $cap_prefix to ${sensor} ${camera} through max9x ${ser_suffix}-${csi2} and max9x ${des_suffix}  .. " >&2
 
@@ -215,15 +217,15 @@ for camera in $mux_list; do
 	# subdev entity '['pad-number '/' stream-number '->' pad-number '/' stream-number '[' route-flags ']' ']' ;
 	if [ $ser_streamid -eq 0 ]; then
 	    if [ "${mux}" \=  "${ser_suffix}" ]; then
-		ser_route="0/${ser_streamid}->2/${streamid}[1]"
+		ser_route="0/${ser_input_streamid}->2/${streamid}[1]"
 	    else
-		ser_route="1/${ser_streamid}->2/${streamid}[1]"
+		ser_route="1/${ser_input_streamid}->2/${streamid}[1]"
 	    fi
 	else
 	    if [ "${mux}" \=  "${ser_suffix}" ]; then
-		ser_route=${ser_route}",0/${ser_streamid}->2/${streamid}[1]"
+		ser_route=${ser_route}",0/${ser_input_streamid}->2/${streamid}[1]"
 	    else
-		ser_route=${ser_route}",1/${ser_streamid}->2/${streamid}[1]"
+		ser_route=${ser_route}",1/${ser_input_streamid}->2/${streamid}[1]"
 	    fi
 	fi
 	des_pad=$(des_sink_pad ${camera})
@@ -241,8 +243,8 @@ for camera in $mux_list; do
 	out $media_ctl_cmd -R "\"Intel ${cap_prefix} CSI2 ${csi2}\"[${csi_route}]"
 
 	#out $media_ctl_cmd -V "$(sen_src_pad ${camera})/${ser_streamid} ${fmt}"
-	out $media_ctl_cmd -V "$(sen_src_pad ${camera})/0 ${fmt}"
-	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/${ser_streamid} ${fmt}"
+	out $media_ctl_cmd -V "$(sen_src_pad ${camera})/${ser_input_streamid} ${fmt}"
+	out $media_ctl_cmd -V "$(ser_sink_pad ${camera})/${ser_input_streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(ser_src_pad ${camera})/${streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(des_sink_pad ${camera})/${streamid} ${fmt}"
 	out $media_ctl_cmd -V "$(des_src_pad ${camera})/${streamid} ${fmt}"
