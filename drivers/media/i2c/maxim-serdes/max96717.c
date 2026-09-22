@@ -1056,6 +1056,7 @@ static int max96717_init_phy(struct max_ser *ser,
 	unsigned int reg;
 	unsigned int mask;
 	unsigned int val;
+	unsigned int lane_map;
 	unsigned int i;
 	int ret;
 
@@ -1106,8 +1107,12 @@ static int max96717_init_phy(struct max_ser *ser,
 			return -EINVAL;
 	}
 
+	lane_map = val;
+	if (priv->info->num_phys > 1 && phy_id == 0)
+		lane_map = val >> 4;
+
 	ret = regmap_update_bits(priv->regmap, reg,
-				 mask, field_prep(mask, val));
+				 mask, field_prep(mask, lane_map));
 	if (ret)
 		return ret;
 
@@ -1126,8 +1131,12 @@ static int max96717_init_phy(struct max_ser *ser,
 			return -EINVAL;
 	}
 
+	lane_map = val >> 4;
+	if (priv->info->num_phys > 1 && phy_id == 1)
+		lane_map = val & GENMASK(3, 0);
+
 	ret = regmap_update_bits(priv->regmap, reg,
-				 mask, field_prep(mask, val >> 4));
+				 mask, field_prep(mask, lane_map));
 	if (ret)
 		return ret;
 
