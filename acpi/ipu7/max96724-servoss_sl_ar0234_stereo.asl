@@ -94,6 +94,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+            #undef DESCH_SER_Z_VC
+            #undef DESCH_SER_U_VC
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -125,6 +127,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+            #undef DESCH_SER_Z_VC
+            #undef DESCH_SER_U_VC
             #undef CAM_ALIAS
             #undef CAM_LANES
 
