@@ -57,6 +57,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
             #define DES_PATH "\\_SB.PC00.DES0"
             #define DES_REF \_SB.PC00.DES0
             #define DES_PIPE_STR_AUTOSELECT 0
+            /*
+             * max9x leaves physical links 1 and 2 at aliases 0x45 and 0x46
+             * across a warm reboot. Keep those first so maxim-serdes can
+             * find either the power-up address or the retained alias.
+             */
+            #define DES_I2C_ALIAS_POOL Package () { 0x45, 0x46, 0x44, 0x47 }
             #include "_des_common_max96724.asl"
 
             // Channel 0 is not populated
@@ -74,6 +80,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
             #define DESCH_RESET_GPIO_PIN2   8
             #define CAM_ALIAS 0x66, 0x67
             #define CAM_LANES 2
+            #define DESCH_SER_X_VC Package () { 1 }
+            #define DESCH_SER_Y_VC Package () { 0 }
             #include "_des_ch_common_zedx.asl"
             #undef DESCH_LINK_NUM
             #undef DESCH_CH
@@ -87,6 +95,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+            #undef DESCH_SER_Z_VC
+            #undef DESCH_SER_U_VC
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -109,6 +119,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
 #ifdef DESCH_CAM_FSIN_GPIO
             #undef DESCH_CAM_FSIN_GPIO
 #endif
+            #undef DES_I2C_ALIAS_POOL
         }
     }
 }
