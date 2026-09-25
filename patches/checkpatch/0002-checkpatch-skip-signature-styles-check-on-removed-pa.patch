@@ -1,0 +1,28 @@
+From bd1ecfd8a9f252f78d839e172c22a0e339f4d2d2 Mon Sep 17 00:00:00 2001
+From: florent pirou <florent.pirou@intel.com>
+Date: Fri, 25 Sep 2026 06:56:02 -0700
+Subject: [PATCH 2/2] checkpatch: skip signature styles check on removed patch
+ commit messages
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
+---
+ checkpatch.pl | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/checkpatch.pl b/checkpatch.pl
+index 74bf1bb..1bef4da 100755
+--- a/checkpatch.pl
++++ b/checkpatch.pl
+@@ -3120,6 +3120,9 @@ sub process {
+ 				}
+ 			}
+ 			if ($sign_off =~ /-by:$/i && $sign_off ne $ucfirst_sign_off) {
++				if ($ucfirst_sign_off =~ /^(\-).*$/i) {
++					next;
++				}
+ 				if (WARN("BAD_SIGN_OFF",
+ 					 "'$ucfirst_sign_off' is the preferred signature form\n" . $herecurr) &&
+ 				    $fix) {
+-- 
+2.43.0
+
