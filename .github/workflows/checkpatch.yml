@@ -25,11 +25,17 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # EXCLUDE patch quilt from IPU7, IPU6 repos v4l2-core OoT
+          # submodule repository does not maintain patch sign-off
+          patch -p1 < patches/checkpatch/0001-checkpatch-add-option-for-excluding-directories.patch
+          patch -p1 < patches/checkpatch/0002-checkpatch-skip-signature-styles-check-on-removed-pa.patch
           # FILE_PATH_CHANGES only prompts to update MAINTAINERS, which this
           # repository does not maintain. FSF_MAILING_ADDRESS also matches
           # required wording in the verbatim GPLv2 license text.
           git fetch --no-tags --prune origin "${BASE_REF}"
           MERGE_BASE="$(git merge-base "origin/${BASE_REF}" "${HEAD_SHA}")"
           ./checkpatch.pl --no-tree --show-types \
-            --ignore FILE_PATH_CHANGES,FSF_MAILING_ADDRESS \
+            --ignore FILE_PATH_CHANGES,FSF_MAILING_ADDRESS,MISSING_FIXES_TAG \
+            --exclude patches \
+            --exclude debian \
             --git "${MERGE_BASE}..${HEAD_SHA}"
