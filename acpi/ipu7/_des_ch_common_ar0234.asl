@@ -25,6 +25,10 @@
  *   DESCH_SER_X/Y/Z/U_VC     - SERx VC filter for Pipe X/Y/Z/U, specifically for MAX96717 driver
  */
 
+#ifndef CAM_CSI_REMOTE_PORT
+#define CAM_CSI_REMOTE_PORT 0
+#endif
+
 Device (DESCH_CH) // New CHxx Device under parent DESx device for each DES channel/link
 {
     /*
@@ -53,3 +57,7 @@ Device (DESCH_CH) // New CHxx Device under parent DESx device for each DES chann
         }
     }
 }
+// Clean up channel-level defines for safe reuse
+#ifdef CAM_CSI_REMOTE_PORT
+#undef CAM_CSI_REMOTE_PORT
+#endif
