@@ -30,7 +30,31 @@
  *   CAM_LANES          - Number of MIPI data lanes for the camera (e.g. 2, 4)
  */
 
-DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260819)
+/* !! IMPORTANT !!
+ * cexd-intrbl (FabB) FAKRA connectors DES0 and DES1 max96724 GMSL A, B, C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (B) (C) |           | (B) (C) |
+    |         |           |         |
+    | (D) (A) |           | (D) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+ * cexd-intrbl (FabC) FAKRA connectors DES0 and DES1 max96724 GMSL A, B , C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (C) (B) |           | (D) (B) |
+    |         |           |         |
+    | (D) (A) |           | (C) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+*/
+DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
 {
     External (_SB.PC00, DeviceObj) // Root device
 
@@ -49,14 +73,14 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260819)
             #define DES_PHY_TYPE 0
             #define DES_I2C_ADDR 0x0027
             #define DES_LANES 2
-            #define DES_INTERNAL_PHY 6
+            #define DES_INTERNAL_PHY 4
             #define DES_TO_MIPI_PORT 0
             #define DES_I2C_BUS "\\_SB.PC00.I2C0"
             #define DES_PATH "\\_SB.PC00.DES0"
             #define DES_REF \_SB.PC00.DES0
             #include "_des_common_max96724.asl"
 
-            // Channel-level defines for Channel 0 (CH00)
+            // Channel-level defines for Channel 0 (GMSL A)
             #define DESCH_CH CH00
             #define DESCH_SER SER0
             #define DESCH_CAM CAM0
@@ -81,7 +105,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260819)
             #undef CAM_ALIAS
             #undef CAM_LANES
 
-            // Channel 1
+            // Channel 1  (GMSL B)
             #define DESCH_CH CH01
             #define DESCH_SER SER1
             #define DESCH_CAM CAM1

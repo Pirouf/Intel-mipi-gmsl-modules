@@ -46,31 +46,41 @@
 
 /*
  * IMPORTANT: The setup below is for Robinson Bay.
- *
- * Rotation 0   = Channel 0
- * Rotation 90  = Channel 1
- * Rotation 180 = Channel 2
- * Rotation 270 = Channel 3
- *
- *  ___ ___       ___ ___
- * |   |   |     |   |   |
- * |90 |180|     | 1 | 2 |
- * |___|___| --> |___|___|
- * |   |   |     |   |   |
- * |270| 0 |     | 3 | 0 |
- * |___|___|     |___|___|
- *
+ * cexd-intrbl (FabB) FAKRA connectors DES0 and DES1 max96724 GMSL A, B, C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (B) (C) |           | (B) (C) |
+    |         |           |         |
+    | (D) (A) |           | (D) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+ * cexd-intrbl (FabC) FAKRA connectors DES0 and DES1 max96724 GMSL A, B , C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (C) (B) |           | (D) (B) |
+    |         |           |         |
+    | (D) (A) |           | (C) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+ * GMSL A = Channel 0
+ * GMSL B = Channel 1
+ * GMSL C = Channel 2
+ * GMSL D = Channel 3
  *
  * Update the ASL accordingly based on your connection.
  * Make sure DESCH_CH, DESCH_SER, DESCH_CAM, DESCH_CH_PATH, DESCH_SER_PATH,
  * DESCH_SER_REF, DESCH_SER_GPIOREF are all updated if connection changed.
  *
- * 3x D3 ISX031 on MIPI-0 (90, 180, 270),   --> DES0, channel 1,2,3 : frame sync enabled
- * 1x RealSense on MIPI-2 (90)              --> DES1, channel 1     : frame sync enabled
+ * 3x D3 ISX031 on MIPI-0 (GMSL B, C and D),    --> DES0, channel 1,2,3 : frame sync enabled
+ * 1x RealSense on MIPI-2 (GMSL B)              --> DES1, channel 1     : frame sync enabled
  *
  */
-
-
 DefinitionBlock ("", "SSDT", 2, "", "IMG_ROB", 0x20260909)
 {
     External (_SB.PC00, DeviceObj)
