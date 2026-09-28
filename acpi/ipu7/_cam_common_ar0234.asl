@@ -21,12 +21,6 @@
 
 #endif
 
-#ifndef CAM_CSI_REMOTE_PORT
-
-#define CAM_CSI_REMOTE_PORT 0
-
-#endif
-
 Method (_STA, 0, NotSerialized) // _STA: Status
 {
     Return (0x0F)               // bit 0: device is present, bit 1: device is enabled, bit 2: device is shown in UI, bit 3: device is functional
