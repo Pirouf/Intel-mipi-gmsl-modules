@@ -37,7 +37,31 @@
  *   DESCH_CAM_FSIN_GPIO      - Optional: camera FSIN GPIO index on the SER
  */
 
-DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260513)
+/* !! IMPORTANT !!
+ * cexd-intrbl (FabB) FAKRA connectors DES0 and DES1 max96724 GMSL A, B, C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (B) (C) |           | (B) (C) |
+    |         |           |         |
+    | (D) (A) |           | (D) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+ * cexd-intrbl (FabC) FAKRA connectors DES0 and DES1 max96724 GMSL A, B , C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (C) (B) |           | (D) (B) |
+    |         |           |         |
+    | (D) (A) |           | (C) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C0          MIPI-2 / I2C1
+
+*/
+DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260907)
 {
     External (_SB.PC00, DeviceObj)
 
