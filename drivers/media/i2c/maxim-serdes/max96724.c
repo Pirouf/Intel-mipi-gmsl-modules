@@ -216,6 +216,11 @@
 #define MAX96724_FSYNC_0			0x4a0
 #define MAX96724_FSYNC_0_MODE		GENMASK(3, 2)
 #define MAX96724_FSYNC_15			0x4af
+#define MAX96724_FSYNC_FREQ			0x4a5
+#define MAX96724_FSYNC_CLK			0x4a6
+#define MAX96724_FSYNC_RATE			0x4a7
+#define MAX96724_FSYNC_TX_ID			0x4b1
+#define MAX96724_FSYNC_SKIP			0x435
 
 /* External frame sync GPIO registers, indexed by MFP number (0-7). */
 #define MAX96724_GPIO_REG(n)				(0x300 + 3 * (n))
@@ -596,6 +601,50 @@ static int max96724_gpiochip_probe(struct max96724_priv *priv)
 	return devm_gpiochip_add_data(priv->dev, &priv->gc, priv);
 }
 
+static int max96724_configure_internal_frame_sync(struct max96724_priv *priv)
+{
+	int ret;
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_15, 0xc0); /* auto fs-link */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_15\n");
+		return ret;
+	}
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_0, 0x24); /* mode fsync = internal */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_0: %d\n", ret);
+		return ret;
+	}
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_FREQ, 0x35); /* Freq 30Hz */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_FREQ\n");
+		return ret;
+	}
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_CLK, 0xb7); /* 30Hz clock */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_CLK\n");
+		return ret;
+	}
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_RATE, 0x0c); /* 30fps bitrate */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_RATE\n");
+		return ret;
+	}
+
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_SKIP, 0x0f); /* skip 16 frames */
+	if (ret) {
+		dev_err(priv->dev, "Failed to configure MAX96724_FSYNC_SKIP\n");
+		return ret;
+	}
+
+	dev_info(priv->dev, "max96724 frame_sync INTERNAL configured successfully\n");
+	return 0;
+}
+
 static int max96724_configure_frame_sync(struct max96724_priv *priv)
 {
 	unsigned int pin = priv->fsin_gpio_pin;
@@ -703,15 +752,19 @@ static int max96724_init(struct max_des *des)
 	 */
 	if (des->frame_sync_enable) {
 		if (!priv->fsin_gpio) {
-			dev_err(priv->dev,
-				"External GMSL frame_sync requested but no fsin GPIO resource found\n");
-			return -EINVAL;
+			dev_info(priv->dev, "Enabling internal GMSL frame_sync\n");
+			ret = max96724_configure_internal_frame_sync(priv);
+			if (ret) {
+				dev_err(priv->dev,
+					"External GMSL frame_sync requested but no fsin GPIO resource found\n");
+				return ret;
+			}
+		} else {
+			dev_info(priv->dev, "Enabling external GMSL frame_sync\n");
+			ret = max96724_configure_frame_sync(priv);
+			if (ret)
+				return ret;
 		}
-
-		dev_info(priv->dev, "Enabling external GMSL frame_sync\n");
-		ret = max96724_configure_frame_sync(priv);
-		if (ret)
-			return ret;
 	} else {
 		dev_info(priv->dev, "External GMSL frame_sync is disabled\n");
 	}
