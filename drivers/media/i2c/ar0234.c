@@ -62,7 +62,12 @@
 
 #define AR0234_MODE_RESET		0x00d9
 #define AR0234_MODE_STANDBY		0x2058
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+#define AR0234_GGRR_CTRL1		CCI_REG16(0x30ce)
+#define AR0234_MODE_STREAMING		AR0234_MODE_STANDBY
+#else
 #define AR0234_MODE_STREAMING		0x205c
+#endif
 
 #define AR0234_PIXEL_RATE		128000000ULL
 #define AR0234_XCLK_FREQ		19200000ULL
@@ -759,6 +764,14 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 		dev_err(&client->dev, "failed to start stream");
 		goto err_rpm_put;
 	}
+#if IS_ENABLED(CONFIG_VIDEO_ZEDX)
+	ret = cci_write(ar0234->regmap, AR0234_GGRR_CTRL1,
+				0x0120, NULL);
+	if (ret) {
+		dev_err(&client->dev, "failed to start fsync");
+		goto err_rpm_put;
+	}
+#endif
 
 	ar0234->streaming = true;
 	return 0;
