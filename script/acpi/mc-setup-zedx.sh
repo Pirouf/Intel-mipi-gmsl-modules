@@ -953,7 +953,9 @@ mbus_to_pixfmt() {
 
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
+    csi2_base=${CSI2_BASE[$k]}
     l=${CFG_LINKS[$k]}
+    p=${CFG_PHYS[$k]}
     key="${d}_${l}"
     ckey="${key}_${p}"
     model=${CAM_MODEL[$ckey]}
@@ -962,7 +964,6 @@ for k in "${!CFG_LINKS[@]}"; do
     else
        suffix="$(echo ${l} | tr '[0-3]' '[a-d]')"
     fi
-    csi2_base=${CSI2_BASE[$k]}
     sel_streams=(${CFG_STREAMS[$k]})
     for idx in "${!sel_streams[@]}"; do
         s=${sel_streams[$idx]}
@@ -977,7 +978,7 @@ for k in "${!CFG_LINKS[@]}"; do
             --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
             >/dev/null
         if [[ $symlink -ne 0 ]]; then
-                dev_ln="/dev/video-${model}-${suffix}-${d}"
+                dev_ln="/dev/video-${model}-${suffix}-${IPU_CSI2_ENTITY[$d]:0-1}"
                 out ln -snf "/dev/video${vid_node}" ${dev_ln}
         fi
     done
