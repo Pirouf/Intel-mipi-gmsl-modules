@@ -9,7 +9,7 @@ ipu7-drivers	/usr/src/@DKMS_PACKAGE_NAME@-@DKMS_PACKAGE_VERSION@
 6.18.0		/usr/src/@DKMS_PACKAGE_NAME@-@DKMS_PACKAGE_VERSION@
 7.0.0		/usr/src/@DKMS_PACKAGE_NAME@-@DKMS_PACKAGE_VERSION@
 patches		/usr/src/@DKMS_PACKAGE_NAME@-@DKMS_PACKAGE_VERSION@
-script/acpi/mc-setup.sh				/usr/share/camera/acpi
+script/acpi/mc-setup*.sh			/usr/share/camera/acpi
 script/d4xx/upstream-rs-enum.sh			/usr/share/camera/acpi
 debian/helpers/blacklist-intel-ipu.conf	/etc/modprobe.d
 debian/helpers/ipu_ops.conf			/etc/modprobe.d
