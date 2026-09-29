@@ -270,6 +270,11 @@ declare -a DES_PATH=() DES_BA=() DES_PREFIX_NAME=() DES_SRC_PAD=()
 declare -a IPU_CSI2_ENTITY=() IPU_BASE=() CAPTURE_BASE=()
 NUM_DES=0
 
+# get IPU CSI2 ISYS Capture  /dev/video initial offset
+PREFIX=$(v4l2-ctl --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
+VID_DEV_OFFSET=$(media-ctl -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
+prefix_lower=$(echo "${PREFIX}" | tr '[:upper:]' '[:lower:]')
+
 # Per-link associative arrays keyed by "d_l" (deserializer index, link index).
 # The serializer is shared by all PHYs on a link, so it is keyed per-link.
 declare -A CH_PATH=() SER_PATH=()
@@ -512,11 +517,12 @@ detect_csi2_entities() {
 
 print_topology() {
     echo "Discovered topology:"
-    local d l p key ckey
+    local d l p key ckey vid_node
     for ((d = 0; d < NUM_DES; d++)); do
+        vid_node=$(( CAPTURE_BASE[$d] + VID_DEV_OFFSET ))
         printf "  DES%d  %-34s %s %s -> %s (capture base /dev/video%s)\n" \
             "$d" "${DES_PATH[$d]}" "${DES_PREFIX_NAME[$d]}" "${DES_BA[$d]}" \
-            "${IPU_CSI2_ENTITY[$d]}" "${CAPTURE_BASE[$d]}"
+            "${IPU_CSI2_ENTITY[$d]}" "$vid_node"
         for l in ${LINKS_OF[$d]}; do
             key="${d}_${l}"
             printf "    SER%d  %-34s %s %s  (phys=%s)\n" \
@@ -595,6 +601,7 @@ declare -A MODEL_DEFAULT_STREAMS=(
     [isx031]="yuv"
     [ar0234]="raw"
 )
+initPsys=0
 
 stream_fmt() {
     case "$1" in
@@ -769,7 +776,8 @@ for k in "${!CFG_LINKS[@]}"; do
     for idx in "${!sel_streams[@]}"; do
         s=${sel_streams[$idx]}
         node=$(( CAPTURE_BASE[d] + CSI2_BASE[$k] + idx ))
-        echo -e "\t\t Stream\t\t [${s}] available at: /dev/video${node}"
+        vid_node=$(( node + VID_DEV_OFFSET ))
+        echo -e "\t\t Stream\t\t [${s}] available at: /dev/video${vid_node}"
     done
 done
 
@@ -903,9 +911,12 @@ for k in "${!CFG_LINKS[@]}"; do
                 ;;
             isx031)
                 out media-ctl -V "\"isx031 ${cam}\":0/${idx} [fmt:${fmt}/${size} field:none]"
+                symlink=1
                 ;;
             ar0234)
                 out media-ctl -V "\"ar0234 ${cam}\":0/${p} [fmt:${fmt}/${size} field:none]"
+                initPsys=1
+                symlink=1
                 ;;
         esac
         out media-ctl -V "\"${ser_pfx} ${ser}\":${ser_sink_pad}/${p} [fmt:${fmt}/${size} field:none]"
@@ -916,6 +927,16 @@ for k in "${!CFG_LINKS[@]}"; do
         out media-ctl -V "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1))/0 [fmt:${fmt}/${size} field:none]"
     done
 done
+
+if [[ $initPsys -ne 0 ]]; then
+        out modprobe intel-${prefix_lower}-psys
+        out mkdir -p /run/camera/
+        out chown root:video /run/camera
+        out chmod 666 /run/camera
+        out chown root:video /dev/${prefix_lower}-psys0
+        out chmod 666 /dev/${prefix_lower}-psys0
+fi
+
 
 # ---- v4l2-ctl: capture-node format -----------------------------------------
 
@@ -932,18 +953,32 @@ mbus_to_pixfmt() {
 
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
+    l=${CFG_LINKS[$k]}
+    key="${d}_${l}"
+    ckey="${key}_${p}"
+    model=${CAM_MODEL[$ckey]}
+    if [ ${CFG_PHYS[$k]} -ne 0 ]; then
+       suffix="$(echo ${l} | tr '[0-3]' '[e-h]')"
+    else
+       suffix="$(echo ${l} | tr '[0-3]' '[a-d]')"
+    fi
     csi2_base=${CSI2_BASE[$k]}
     sel_streams=(${CFG_STREAMS[$k]})
     for idx in "${!sel_streams[@]}"; do
         s=${sel_streams[$idx]}
         node=$(( CAPTURE_BASE[d] + csi2_base + idx ))
+        vid_node=$(( node + VID_DEV_OFFSET ))
         pixfmt=$(mbus_to_pixfmt "$(stream_fmt "$s")")
         [ -z "$pixfmt" ] && continue
         size=$(stream_size "$s")
         w=${size%x*}
         h=${size#*x}
-        v4l2-ctl -d "/dev/video${node}" \
+        out v4l2-ctl -d "/dev/video${vid_node}" \
             --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
             >/dev/null
+        if [[ $symlink -ne 0 ]]; then
+                dev_ln="/dev/video-${model}-${suffix}-${d}"
+                out ln -snf "/dev/video${vid_node}" ${dev_ln}
+        fi
     done
 done
