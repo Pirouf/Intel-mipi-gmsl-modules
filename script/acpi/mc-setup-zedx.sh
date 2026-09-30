@@ -932,9 +932,9 @@ if [[ $initPsys -ne 0 ]]; then
         out modprobe intel-${prefix_lower}-psys
         out mkdir -p /run/camera/
         out chown root:video /run/camera
-        out chmod 666 /run/camera
+        out chmod 777 /run/camera
         out chown root:video /dev/${prefix_lower}-psys0
-        out chmod 666 /dev/${prefix_lower}-psys0
+        out chmod 777 /dev/${prefix_lower}-psys0
 fi
 
 
