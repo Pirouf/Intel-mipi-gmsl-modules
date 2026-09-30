@@ -38,6 +38,20 @@
  *   DESCH_CAM_FSIN_GPIO      - Optional: camera FSIN GPIO index on the SER
  */
 
+/* !! IMPORTANT !!
+ * Servoss-mountain AIC (FabB) FAKRA connectors DES0 and DES1 max96724 GMSL A, B , C and D links pinout
+      _______               _______
+     /_ _ _ _\             /_ _ _ _\
+    |         |           |         |
+    | (C) (B) |           | (C) (B) |
+    |         |           |         |
+    | (D) (A) |           | (D) (A) |
+    |____v____|           |____v____|
+
+   MIPI-0 / I2C1          MIPI-2 / I2C2
+
+*/
+
 DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
 {
     External (_SB.PC00, DeviceObj)
@@ -48,6 +62,9 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
     {
         Device (DES0)
         {
+            #define EXTERNAL_FRAME_SYNC 1
+            #define EXTERNAL_FRAME_FREQ_HZ 30
+
             // DES-level defines for DES0
             #define DES_PHY_TYPE 0
             #define DES_I2C_ADDR 0x0027
@@ -77,6 +94,9 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER1
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
+            #define DESCH_SER_FSYNC_RX_ID 9
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -96,6 +116,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_SER_Y_VC
             #undef DESCH_SER_Z_VC
             #undef DESCH_SER_U_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
+#ifdef DESCH_SER_FSYNC_RX_ID
+            #undef DESCH_SER_FSYNC_RX_ID
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -110,6 +139,9 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER2
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
+            #define DESCH_SER_FSYNC_RX_ID 9
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -129,6 +161,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_SER_Y_VC
             #undef DESCH_SER_Z_VC
             #undef DESCH_SER_U_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
+#ifdef DESCH_SER_FSYNC_RX_ID
+            #undef DESCH_SER_FSYNC_RX_ID
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
