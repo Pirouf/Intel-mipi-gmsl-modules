@@ -215,7 +215,16 @@
 /* Native frame sync registers */
 #define MAX96724_FSYNC_0			0x4a0
 #define MAX96724_FSYNC_0_MODE		GENMASK(3, 2)
+#define MAX96724_FSYNC_0_METH		GENMASK(1, 0)
+/* Generated frame sync period in crystal cycles: low, middle, high byte */
+#define MAX96724_FSYNC_PERIOD(x)		(0x4a5 + (x))
+/* VSYNC spread error threshold, low and high byte: all 13 bits at 0 disable it */
+#define MAX96724_FSYNC_8			0x4a8
+#define MAX96724_FSYNC_9			0x4a9
 #define MAX96724_FSYNC_15			0x4af
+#define MAX96724_FSYNC_17			0x4b1
+#define MAX96724_FSYNC_17_TX_ID		GENMASK(7, 3)
+#define MAX96724_XTAL_HZ			25000000
 
 /* External frame sync GPIO registers, indexed by MFP number (0-7). */
 #define MAX96724_GPIO_REG(n)				(0x300 + 3 * (n))
@@ -224,6 +233,7 @@
 #define MAX96724_GPIO_A_TX_ENABLE			BIT(1)
 #define MAX96724_GPIO_A_GPIO_IN				BIT(3)
 #define MAX96724_FS_GPIO_TYPE				BIT(7)
+#define MAX96724_FS_USE_XTAL				BIT(6)
 
 /* Custom pinconf param, mirroring MAX96717_PINCTRL_INPUT_VALUE. */
 #define MAX96724_PINCTRL_X(x)			(PIN_CONFIG_END + (x))
@@ -270,6 +280,9 @@ struct max96724_priv {
 	struct gpio_desc *gpiod_enable;
 	struct gpio_desc *fsin_gpio;
 	unsigned int fsin_gpio_pin;
+	/* Frame sync generated here: rate (0 for none), GPIO ID sent as */
+	u32 fsync_internal_hz;
+	u32 fsync_tx_id;
 	struct gpio_chip gc;
 };
 
@@ -653,6 +666,65 @@ static int max96724_configure_frame_sync(struct max96724_priv *priv)
 	return 0;
 }
 
+/*
+ * A frame sync generated here instead of taken from an MFP, for cameras
+ * that only need a trigger relayed by their serializer (a ZED X's two
+ * AR0234 on MAX9295D MFP9 and MFP10): manual method, counting crystal
+ * cycles, sent to the links as GPIO ID fsync_tx_id, the serializers'
+ * "maxim,rx-id". Mode 00 drives no MFP (mode 01 would also output it on
+ * MFP2 or MFP10).
+ */
+static int max96724_configure_internal_frame_sync(struct max96724_priv *priv)
+{
+	unsigned int period = MAX96724_XTAL_HZ / priv->fsync_internal_hz;
+	unsigned int i;
+	int ret;
+
+	/*
+	 * GMSL2-type FSYNC counted in crystal cycles. The video pipe selection
+	 * (FS_LINK_x) is left alone: with no pipe selected, no video at all
+	 * comes out while the generator runs.
+	 */
+	ret = regmap_set_bits(priv->regmap, MAX96724_FSYNC_15,
+			      MAX96724_FS_GPIO_TYPE | MAX96724_FS_USE_XTAL);
+	if (ret)
+		return ret;
+
+	for (i = 0; i < 3; i++) {
+		ret = regmap_write(priv->regmap, MAX96724_FSYNC_PERIOD(i),
+				   (period >> (8 * i)) & 0xff);
+		if (ret)
+			return ret;
+	}
+
+	/*
+	 * No VSYNC spread check: with it, the pipes of sensors not (or not
+	 * yet) started by the pulse can get no video at all while it runs.
+	 */
+	ret = regmap_write(priv->regmap, MAX96724_FSYNC_8, 0);
+	if (ret)
+		return ret;
+	ret = regmap_write(priv->regmap, MAX96724_FSYNC_9, 0);
+	if (ret)
+		return ret;
+
+	ret = regmap_update_bits(priv->regmap, MAX96724_FSYNC_17,
+				 MAX96724_FSYNC_17_TX_ID,
+				 FIELD_PREP(MAX96724_FSYNC_17_TX_ID, priv->fsync_tx_id));
+	if (ret)
+		return ret;
+
+	/* Last, turn the generator on: mode 00, manual method. */
+	ret = regmap_update_bits(priv->regmap, MAX96724_FSYNC_0,
+				 MAX96724_FSYNC_0_MODE | MAX96724_FSYNC_0_METH, 0);
+	if (ret)
+		return ret;
+
+	dev_info(priv->dev, "frame_sync generated at %u Hz, sent as GPIO ID %u\n",
+		 priv->fsync_internal_hz, priv->fsync_tx_id);
+	return 0;
+}
+
 static int max96724_init(struct max_des *des)
 {
 	struct max96724_priv *priv = des_to_priv(des);
@@ -697,11 +769,19 @@ static int max96724_init(struct max_des *des)
 		return ret;
 
 	/*
-	 * External GMSL frame sync requires the "des-fsin" GPIO (MFPx) resource
-	 * to be present, as declared by the ACPI GpioIo()/"des-fsin-gpios"
-	 * resource.
+	 * GMSL frame sync is generated here when "gmsl-frame-sync-internal-hz"
+	 * is set. Otherwise, external GMSL frame sync requires the "des-fsin"
+	 * GPIO (MFPx) resource to be present, as declared by the ACPI
+	 * GpioIo()/"des-fsin-gpios" resource.
 	 */
-	if (des->frame_sync_enable) {
+	if (des->frame_sync_enable && priv->fsync_internal_hz) {
+		ret = max96724_configure_internal_frame_sync(priv);
+		if (ret) {
+			dev_err(priv->dev, "Failed to generate frame_sync: %d\n",
+				ret);
+			return ret;
+		}
+	} else if (des->frame_sync_enable) {
 		if (!priv->fsin_gpio) {
 			dev_err(priv->dev,
 				"External GMSL frame_sync requested but no fsin GPIO resource found\n");
@@ -1440,6 +1520,25 @@ static int max96724_probe(struct i2c_client *client)
 		}
 
 		priv->fsin_gpio_pin = pin;
+	}
+
+	/*
+	 * Optional frame sync generated here instead, at this rate (Hz), sent
+	 * to the links as this GPIO ID: the serializers' "maxim,rx-id". 16 by
+	 * default, clear of the serializers' MFP numbers, which their GPIOs
+	 * use as their own IDs.
+	 */
+	fwnode_property_read_u32(dev_fwnode(dev), "gmsl-frame-sync-internal-hz",
+				 &priv->fsync_internal_hz);
+	priv->fsync_tx_id = 16;
+	fwnode_property_read_u32(dev_fwnode(dev), "gmsl-frame-sync-tx-id",
+				 &priv->fsync_tx_id);
+	if (priv->fsync_internal_hz &&
+	    (priv->fsync_internal_hz < 2 || priv->fsync_internal_hz > 1000 ||
+	     priv->fsync_tx_id > FIELD_MAX(MAX96724_FSYNC_17_TX_ID))) {
+		dev_err(dev, "frame_sync Invalid internal rate %u Hz or GPIO ID %u\n",
+			priv->fsync_internal_hz, priv->fsync_tx_id);
+		return -EINVAL;
 	}
 
 	if (priv->gpiod_enable) {
