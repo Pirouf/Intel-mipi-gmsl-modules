@@ -98,6 +98,15 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
 #ifdef DESCH_CAM_FSIN_GPIO
         Package () { "fsin-gpios", Package () { DESCH_SER_GPIOREF, 0, DESCH_SER_GPIOFSINID, 1 } },
 #endif
+        /*
+         * External GMSL frame sync control, consumed by ar0234.c.
+         * Disabled by default; define EXTERNAL_FRAME_SYNC to override
+         */
+#ifdef EXTERNAL_FRAME_SYNC
+        Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
+#else
+        Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
+#endif
     },
     ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
     Package ()
