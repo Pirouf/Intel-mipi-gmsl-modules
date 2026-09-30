@@ -31,6 +31,9 @@
 #define AR0234_REG_GLOBAL_GAIN		CCI_REG16(0x305e)
 #define AR0234_REG_ORIENTATION		CCI_REG16(0x3040)
 #define AR0234_REG_TEST_PATTERN		CCI_REG16(0x0600)
+#define AR0234_REG_GRR_CONTROL1		CCI_REG16(0x30ce)
+#define AR0234_GRR_SLAVE_SH_SYNC_MODE	BIT(8)
+#define AR0234_GRR_FRAME_START_MODE	BIT(5)
 
 #define AR0234_EXPOSURE_MIN		0
 #define AR0234_EXPOSURE_MAX_MARGIN	80
@@ -67,6 +70,15 @@
 #define AR0234_MODE_RESET		0x00d9
 #define AR0234_MODE_STANDBY		0x2058
 #define AR0234_MODE_STREAMING		0x205c
+/*
+ * Streaming in multi-sensor sync mode: each frame starts on the TRIGGER
+ * input instead of the sensor's own timing, so sensors sharing a trigger
+ * (the two of a ZED X, on MAX9295D MFP9 and MFP10) expose and read out
+ * together. On top of streaming, this enables the input pins (GPI_EN),
+ * keeps the PLL running between frames (forced_pll_on) and restarts the
+ * current frame.
+ */
+#define AR0234_MODE_STREAMING_SYNC	0x295e
 
 #define AR0234_PIXEL_RATE		128000000ULL
 #define AR0234_XCLK_FREQ		19200000ULL
@@ -83,6 +95,11 @@
 #define AR0234_REG_SLEEP_200MS	200
 /* To serialize asynchronous callbacks */
 static DEFINE_MUTEX(ar0234_mutex);
+
+static int frame_sync = -1;
+module_param(frame_sync, int, 0644);
+MODULE_PARM_DESC(frame_sync,
+		 "Start each frame on the TRIGGER input (multi-sensor sync mode), read at stream start: -1 as the firmware node's gmsl-frame-sync-enable says (default), 0 never, 1 always");
 
 struct ar0234_reg_list {
 	u32 num_of_regs;
@@ -475,6 +492,8 @@ struct ar0234 {
 	ar0234_platform_data *platform_data;
 	u8 lanes;
 	bool streaming;
+	/* Firmware node's "gmsl-frame-sync-enable": frames start on TRIGGER */
+	bool fw_frame_sync;
 #if IS_ENABLED(CONFIG_VIDEO_ZEDX)
 	bool routing_initialized;
 #endif
@@ -730,6 +749,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&ar0234->sd);
 	const struct ar0234_reg_list *reg_list;
+	bool sync = frame_sync < 0 ? ar0234->fw_frame_sync : frame_sync > 0;
 	int ret;
 
 	/*
@@ -757,12 +777,31 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 	if (ret)
 		goto err_rpm_put;
 
+	/*
+	 * In slave sync mode, a trigger starts an interval of frame length
+	 * lines at the end of which readout begins, and a trigger arriving
+	 * during that interval is ignored: the trigger period must not be
+	 * shorter than the frame (33.2 ms at the default VTS, which a 30 Hz
+	 * trigger allows). Written either way, so that a stream started
+	 * without sync never waits for a trigger.
+	 */
+	ret = cci_write(ar0234->regmap, AR0234_REG_GRR_CONTROL1,
+			sync ? AR0234_GRR_SLAVE_SH_SYNC_MODE |
+			       AR0234_GRR_FRAME_START_MODE : 0, NULL);
+	if (ret) {
+		dev_err(&client->dev, "failed to set the frame sync mode");
+		goto err_rpm_put;
+	}
+
 	ret = cci_write(ar0234->regmap, AR0234_REG_MODE_SELECT,
-			AR0234_MODE_STREAMING, NULL);
+			sync ? AR0234_MODE_STREAMING_SYNC : AR0234_MODE_STREAMING,
+			NULL);
 	if (ret) {
 		dev_err(&client->dev, "failed to start stream");
 		goto err_rpm_put;
 	}
+	if (sync)
+		dev_dbg(&client->dev, "streaming on the frame sync trigger");
 
 	ar0234->streaming = true;
 	return 0;
@@ -1234,6 +1273,7 @@ static int ar0234_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct ar0234 *ar0234;
+	u32 val;
 	int ret;
 
 	ar0234 = devm_kzalloc(&client->dev, sizeof(*ar0234), GFP_KERNEL);
@@ -1250,6 +1290,11 @@ static int ar0234_probe(struct i2c_client *client)
 				     "failed to init CCI");
 
 	v4l2_i2c_subdev_init(&ar0234->sd, client, &ar0234_subdev_ops);
+
+	/* 0 or 1, as on the deserializer and serializer; absent means 0. */
+	if (!fwnode_property_read_u32(dev_fwnode(dev), "gmsl-frame-sync-enable",
+				      &val))
+		ar0234->fw_frame_sync = !!val;
 
 	ar0234->reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
 							GPIOD_ASIS);
