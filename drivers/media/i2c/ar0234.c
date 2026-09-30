@@ -47,11 +47,15 @@
 #define AR0234_GLOBAL_GAIN_DEFAULT	0x80
 
 #define AR0234_NATIVE_WIDTH		1920
-#define AR0234_NATIVE_HEIGHT		1080
+#define AR0234_NATIVE_HEIGHT		1200
 #define AR0234_COMMON_WIDTH		1280
 #define AR0234_COMMON_HEIGHT		960
+/*
+ * Where the 1280x960 mode's window sits in the 1920x1200 active array: X_ADDR_START 0x148 and
+ * Y_ADDR_START 0x80 (328, 128) less the array's 8 border columns and rows, which centres it.
+ */
 #define AR0234_PIXEL_ARRAY_LEFT		320
-#define AR0234_PIXEL_ARRAY_TOP		60
+#define AR0234_PIXEL_ARRAY_TOP		120
 #define AR0234_ORIENTATION_HFLIP	BIT(14)
 #define AR0234_ORIENTATION_VFLIP	BIT(15)
 
@@ -865,6 +869,8 @@ static int ar0234_set_format(struct v4l2_subdev *sd,
 #else
 	crop = v4l2_subdev_state_get_crop(sd_state, fmt->pad);
 #endif
+	crop->left = AR0234_PIXEL_ARRAY_LEFT;
+	crop->top = AR0234_PIXEL_ARRAY_TOP;
 	crop->width = mode->width;
 	crop->height = mode->height;
 
@@ -958,10 +964,11 @@ static int ar0234_get_selection(struct v4l2_subdev *sd,
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
-		sel->r.top = AR0234_PIXEL_ARRAY_TOP;
-		sel->r.left = AR0234_PIXEL_ARRAY_LEFT;
-		sel->r.width = AR0234_COMMON_WIDTH;
-		sel->r.height = AR0234_COMMON_HEIGHT;
+		/* The whole active array: the mode's window is reported by V4L2_SEL_TGT_CROP. */
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = AR0234_NATIVE_WIDTH;
+		sel->r.height = AR0234_NATIVE_HEIGHT;
 		break;
 
 	case V4L2_SEL_TGT_CROP:
