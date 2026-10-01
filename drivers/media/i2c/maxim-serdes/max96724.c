@@ -662,7 +662,8 @@ static int max96724_configure_frame_sync(struct max96724_priv *priv)
 		return ret;
 	}
 
-	dev_info(priv->dev, "max96724 frame_sync configured successfully\n");
+	dev_info(priv->dev, "max96724 frame_sync configured successfully: TX_ID=%u \n",
+		 val);
 	return 0;
 }
 

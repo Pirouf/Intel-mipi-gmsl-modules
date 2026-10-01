@@ -1478,7 +1478,8 @@ static int max96717_configure_frame_sync(struct max96717_priv *priv, unsigned in
 		return ret;
 	}
 
-	dev_info(priv->dev, "max96717 frame_sync configured successfully\n");
+	dev_info(priv->dev, "max96717 frame_sync configured successfully: RX_ID=%u\n",
+		 priv->ser.frame_sync_rx_id);
 	return 0;
 }
 
