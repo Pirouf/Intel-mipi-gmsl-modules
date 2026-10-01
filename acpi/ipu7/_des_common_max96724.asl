@@ -123,6 +123,11 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
         #ifdef EXTERNAL_FRAME_FREQ_HZ
         Package () { "gmsl-frame-sync-internal-hz", EXTERNAL_FRAME_FREQ_HZ }, // Set internal Trigger rate
         #endif
+        #ifdef DESCH_SER_FSYNC_RX_ID
+        Package () { "gmsl-frame-sync-tx-id", DESCH_SER_FSYNC_RX_ID }, // Set RX_ID = TX_ID FSYNC
+        #else
+        Package () { "gmsl-frame-sync-tx-id", 10 }, // Set TX_ID=10
+        #endif
         #else
         Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
         #endif
