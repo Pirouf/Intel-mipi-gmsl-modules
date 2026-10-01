@@ -277,9 +277,9 @@ if [[ $initPsysDone -eq 0 && $initPsys -ne 0 ]]; then
 	out modprobe intel-${cap_prefix_lower}-psys
 	out mkdir -p /run/camera/
 	out chown root:video /run/camera
-	out chmod 666 /run/camera
+	out chmod 777 /run/camera
 	out chown root:video /dev/${cap_prefix_lower}-psys0
-	out chmod 666 /dev/${cap_prefix_lower}-psys0
+	out chmod 777 /dev/${cap_prefix_lower}-psys0
 	initPsysDone=1
 fi
 
