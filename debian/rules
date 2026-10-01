@@ -145,7 +145,6 @@ override_dh_installsystemd:
 
 override_dh_clean:
 	-rm -f $(generated_dkms_files)
-	-rm -rf 6.1* 7.*
 	dh_clean
 
 $(asl_filelist): $(asl_filelist:=.asl)

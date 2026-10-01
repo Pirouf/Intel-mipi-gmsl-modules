@@ -19,6 +19,8 @@ Architecture: amd64
 Depends:
  dkms,
  pahole,
+ cpio,
+ pciutils,
  v4l-utils (>= 1.30~),
  grub-efi-amd64,
  ${misc:Depends},

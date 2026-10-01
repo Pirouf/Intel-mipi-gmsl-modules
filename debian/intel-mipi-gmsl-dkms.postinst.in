@@ -30,15 +30,99 @@ AML="${AMLDIR}/${IPU}/${BOARD}_${SENSOR}.aml"
 
 DIR="kernel/firmware/acpi"
 
+parse_local_asl_defines() {
+    local filepath="$1"
+
+    if [ ! -f "$filepath" ]; then
+       echo "Error: ASL file not found at ${filepath}" >&2
+       printf "  Unknown ${SENSOR} mapping"
+       return 1
+    fi
+
+    awk '
+    # Initialize the GMSL port translation map
+    BEGIN {
+	    gmsl_map["CH00"] = "GMSL A"
+	    gmsl_map["CH01"] = "GMSL B"
+	    gmsl_map["CH02"] = "GMSL C"
+	    gmsl_map["CH03"] = "GMSL D"
+    }
+    {
+	# 1. Capture DES_PATH (deserializer instance path)
+	if (match($0, /#define[ \t]+DES_PATH[ \t]+(\042)?([^\042 \t]+)(\042)?/, arr)) {
+	   current_des_path = arr[2]
+	}
+
+        # 2. Capture the DES_TO_MIPI_PORT number (e.g., 0, 2, 4)
+	if (match($0, /#define[ \t]+DES_TO_MIPI_PORT[ \t]+([0-9]+)/, arr)) {
+	   current_mipi_port = arr[1]
+	}
+
+	# 3. Capture the Channel identifier (e.g. CH00, CH01)
+	if (match($0, /#define[ \t]+DESCH_CH[ \t]+(\042)?([A-Z0-9]+)(\042)?/, arr)) {
+	    current_desch_ch = arr[2]
+	    }
+
+	# 4. Capture the hex CAM_ALIAS address (e.g. 0x54) for the block
+	if (match($0, /#define[ \t]+CAM_ALIAS[ \t]+(0x[0-9a-fA-F]+)/, arr)) {
+	   current_cam_alias = arr[1]
+	}
+
+	# 5. Trigger print block when #include line is reached
+	if (match($0, /#include[ \t]+\042_des_ch_common_([^\042.]+)\.asl\042/, arr)) {
+	   # REMOVED "local" keywords here to fix syntax error
+	   camera_type = arr[1]
+	   des_id = "UNKNOWN"
+
+	   # Parse out the Deserializer ID (e.g., DES0 or DES1)
+	   if (match(current_des_path, /DES[0-9]+/)) {
+	      des_id = substr(current_des_path, RSTART, RLENGTH)
+	   }
+
+	   # Map the channel to physical GMSL links
+	   gmsl_link = (gmsl_map[current_desch_ch] != "") ? gmsl_map[current_desch_ch] : current_desch_ch
+
+	   # Use fallback if CAM_ALIAS was not defined in this block
+	   cam_alias = (current_cam_alias != "") ? current_cam_alias : "unknown"
+
+           # Map DES_TO_MIPI_PORT fallback if not parsed
+           mipi_num = (current_mipi_port != "") ? current_mipi_port : "0"
+
+           # Transpose: Combine Deserializer and MIPI port (e.g., "DES0 MIPI-0")
+           des_mipi_mapping = "MIPI-" mipi_num
+
+	   # Print the clean transposed mapping with the captured CAM_ALIAS
+	   printf "  %s (%s) %s (%s) -> %s, ", des_mipi_mapping, des_id, gmsl_link, cam_alias, camera_type
+
+	   # Reset block-specific variables to prevent bleed-through
+	   current_cam_alias = ""
+       }
+    }
+    ' "$filepath"
+}
+
+
 case "$1" in
 	configure|triggered)
 		if [ "$MAX9X" = "maxim-serdes" ]; then
-			echo "postinst build for ${MAX9X} ACPI SSDT-overlay ${IPU}/${BOARD}_${SENSOR}.aml" >&2
 			echo "clear MAKE_OPTS" >&2
 			export MAKE_OPTS=""
 			export SKIP_MAXIM_SERDES=0
 
 			if [ -e $AML ]; then
+				echo "postinst build for ${MAX9X} ACPI SSDT-overlay ${IPU}/${BOARD}_${SENSOR}.aml" >&2
+
+				# Fetch the parsed ASL info
+				ASL_PATH="/usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION/acpi/${IPU}/${BOARD}_${SENSOR}.asl"
+				ASL_DEFINES=$(parse_local_asl_defines ${ASL_PATH})
+
+				# Substitute the variable into the debconf template
+				# Note: The 'asl-info' key must match the placeholder in the templates file
+				db_subst intel-mipi-gmsl-dkms/max96724-cexd-intrbl asl-info "${ASL_DEFINES}"
+
+				# Display the screen to the user
+				db_input high intel-mipi-gmsl-dkms/${BOARD} || true
+				db_go || true
 
 				mkdir -p "$DIR"
 				cp "$AML" "$DIR"

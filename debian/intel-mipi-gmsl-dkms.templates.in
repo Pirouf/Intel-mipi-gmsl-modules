@@ -36,3 +36,103 @@ Choices: @d4xxdeserlist@
 Default: @defauld4xxserdes@
 Description: Compile d4xx-compat (legacy <= 1.0.1.31) GMSL2 Serializer-Deserializer [defaut:@defauld4xxserdes@]
   ACPI PDATA probe GMSL2 kernel drivers on Camera ACPI device either for @d4xxdeserlist@.
+
+
+Template: intel-mipi-gmsl-dkms/max96724-cexd-intrbl
+Type: note
+Description: Selected ${asl-info} onto
+  MAX96724 cexd-intrbl (RevA/RevB) FAKRA connectors
+   _________             _________
+  |    ^    |           |    ^    |
+  | (B) (C) |           | (B) (C) |
+  |         |           |         |
+  | (D) (A) |           | (D) (A) |
+  | _ _ _ _ |           | _ _ _ _ |
+   \_______/             \_______/
+  .
+  MIPI-0 / I2C0          MIPI-2 / I2C1
+  .
+  MAX96724 cexd-intrbl (RevC) FAKRA connectors
+   _________             _________
+  |    ^    |           |    ^    |
+  | (C) (B) |           | (D) (B) |
+  |         |           |         |
+  | (D) (A) |           | (C) (A) |
+  | _ _ _ _ |           | _ _ _ _ |
+   \_______/             \_______/
+  .
+  MIPI-0 / I2C0          MIPI-2 / I2C1
+
+
+Template: intel-mipi-gmsl-dkms/max96724-servoss
+Type: note
+Description: Selected ${asl-info} onto
+   MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+    _______               _______
+   /_ _ _ _\             /_ _ _ _\
+  |         |           |         |
+  | (B) (C) |           | (B) (C) |
+  |         |           |         |
+  | (A) (D) |           | (A) (D) |
+  |____v____|           |____v____|
+  .
+  MIPI-0 / I2C1          MIPI-2 / I2C2
+  .
+  MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
+    _______               _______
+   /_ _ _ _\             /_ _ _ _\
+  |         |           |         |
+  | (C) (B) |           | (D) (B) |
+  |         |           |         |
+  | (D) (A) |           | (C) (A) |
+  |____v____|           |____v____|
+  .
+  MIPI-0 / I2C1          MIPI-2 / I2C2
+
+
+Template: intel-mipi-gmsl-dkms/max96724-servoss_dphy
+Type: note
+Description: Selected ${asl-info} onto
+   MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+    _______               _______
+   /_ _ _ _\             /_ _ _ _\
+  |         |           |         |
+  | (B) (C) |           | (B) (C) |
+  |         |           |         |
+  | (A) (D) |           | (A) (D) |
+  |____v____|           |____v____|
+  .
+  MIPI-0 / I2C1          MIPI-2 / I2C2
+  .
+  MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
+    _______               _______
+   /_ _ _ _\             /_ _ _ _\
+  |         |           |         |
+  | (C) (B) |           | (D) (B) |
+  |         |           |         |
+  | (D) (A) |           | (C) (A) |
+  |____v____|           |____v____|
+  .
+  MIPI-0 / I2C1          MIPI-2 / I2C2
+
+
+Template: intel-mipi-gmsl-dkms/max9296-swiss
+Type: note
+Description: Selected ${asl-info} onto
+  MAX9296 AIC (Swiss mountain RevA) FAKRA connectors
+    _______
+   /_ _ _ _\
+  |         |
+  | (B) (C) |
+  |         |
+  | (A) (D) |
+  |____v____|
+  .
+  MIPI-0 / I2C0 (MAX9296-1 GMSL A & B Links)
+  MIPI-4 / I2C1 (MAX9296-2 GMSL C & D Links)
+
+
+Template: intel-mipi-gmsl-dkms/custom
+Type: note
+Description: Selected ${asl-info} onto
+  Unknown Fakra connector.

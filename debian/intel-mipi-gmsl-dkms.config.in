@@ -13,6 +13,7 @@ db_version 2.0
 
 declare -A BOARDS=@boardlist@
 declare -A SCENARIOS=@scenarios@
+
 STATE="max9x"
 
 #db_settitle intel-mipi-gmsl-dkms serdes-user-configuration
@@ -40,26 +41,31 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 		fi
 		;;
             board)
-		# query ipu pciid
-		PCI_ID=$(lspci | grep "Multimedia controller: Intel Corporation Device" | cut -d " " -f 1)
-		DESC=$(lspci -s $PCI_ID -nnmmv | grep ^Device)
-		case "$DESC" in
-		    #drivers/media/pci/intel/ipu7/ipu7.h
-		    *d719*)
-			IPU=ipu8
-			;;
-		    #drivers/media/pci/intel/ipu7/ipu7.h
-		    *645d*|*b05d*)
-			IPU=ipu7
-			;;
-		    #drivers/media/pci/intel/ipu.h
-		    *7d19*|*a75d*|*462e*|*465d*|*4e19*|*9a19*)
-			IPU=ipu6
-			;;
-		    *)
-			NIC_TYPE=@defaultipu@
-			;;
-		esac
+		IPU=@defaultipu@
+		if command -v lspci > /dev/null; then
+		    # query ipu pciid
+		    PCI_ID=$(lspci | grep "Multimedia controller: Intel Corporation Device" | cut -d " " -f 1)
+		    if [ ! -z $PCI_ID ]; then
+			DESC=$(lspci -s $PCI_ID -nnmmv | grep ^Device)
+			case "$DESC" in
+			    #drivers/media/pci/intel/ipu7/ipu7.h
+			    *d719*)
+				IPU=ipu8
+				;;
+			    #drivers/media/pci/intel/ipu7/ipu7.h
+			    *645d*|*b05d*)
+				IPU=ipu7
+				;;
+			    #drivers/media/pci/intel/ipu.h
+			    *7d19*|*a75d*|*462e*|*465d*|*4e19*|*9a19*)
+				IPU=ipu6
+				;;
+			    *)
+				IPU=@defaultipu@
+				;;
+			esac
+		    fi
+		fi
 		db_set intel-mipi-gmsl-dkms/ipu ${IPU}
 
 		# query board
