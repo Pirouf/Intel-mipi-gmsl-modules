@@ -172,6 +172,22 @@ $(generated_dkms_files) : $(generated_dkms_files:=.in) debian/rules
 	    -e 's/@pdatadefault@/$(defaultpdata)/g' \
 	    <$(@:=.in) >$@
 
+### docs ###################################################################
+override_dh_installdocs:
+	dh_installdocs
+	install -d debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/acpi
+	install -d debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/ar0234
+	install -d debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/d4xx
+	install -d debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/isx031
+	cp -f README.md debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/
+	cp -f doc/ar0234/*.md debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/acpi/
+	cp -f doc/ar0234/*.md debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/ar0234/
+	cp -f doc/d4xx/*.md debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/d4xx/
+	cp -f doc/isx031/*.md debian/intel-mipi-gmsl-dkms/usr/share/doc/intel-mipi-gmsl-dkms/doc/isx031/
+	# 4. Clean up any execution permissions on the markdown files (Debian policy)
+	find debian/intel-mipi-gmsl-dkms/usr/share/doc/ -type f -name "*.md" -exec chmod 644 {} +
+
+
 ### others ###################################################################
 %:
 	dh $@ --with modaliases
