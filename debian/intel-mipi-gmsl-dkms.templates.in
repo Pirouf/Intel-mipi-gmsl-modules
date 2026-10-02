@@ -79,7 +79,7 @@ Description: Select the camera sensor module linked to the GMSL lines:
   - ar0234: onsemi 2.3MP Global Shutter sensor
             Features high-speed capture (up to 90 FPS) and low latency,
             optimized for robotics motion tracking and edge-AI vision.
-  - d457:   Intel RealSense Active Stereo depth camera
+  - d457:   RealSense camera depth-sensing technology
             Combines global shutter stereo depth imagers, an RGB sensor,
             and an onboard IMU with GMSL2 serialization for depth mapping.
   - isx031: Sony 3MP Automotive HDR camera module
@@ -98,7 +98,7 @@ Choices: @d4xxdeserlist@
 Default: @defauld4xxserdes@
 Description: Enable backward compatibility for RealSense D4xx pipelines?
  Select this option to enable unified legacy driver and interface support
- designed for Intel RealSense D4xx-series (legacy <= 1.0.1.31) depth cameras.
+ designed for RealSense D4xx-series (legacy <= 1.0.1.31) depth cameras.
  .
  This configuration option registers legacy sysfs nodes, device structures,
  and fallback ioctl mappings to allow existing D4xx/RealSense-optimized
