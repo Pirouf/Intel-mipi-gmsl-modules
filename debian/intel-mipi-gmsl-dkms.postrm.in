@@ -54,6 +54,10 @@ case "$1" in
 		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION ]; then
 		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION
 		fi
+		# avoid leftover blacklist
+		if [ -f /etc/modprobe.d/blacklist-intel-ipu.conf ]; then
+		    rm -f /etc/modprobe.d/blacklist-intel-ipu.conf
+		fi
 	;;
 	upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
 		# avoid potential conflict with manually compiled dkms build

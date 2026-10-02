@@ -109,6 +109,10 @@ case "$1" in
 			export MAKE_OPTS=""
 			export SKIP_MAXIM_SERDES=0
 
+			# remove failsafe: SSDT-overlay are structural checked, no risk
+			sed -i "s/^\(blacklist intel_ipu6_isys$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+			sed -i "s/^\(blacklist intel_ipu7_isys$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+
 			if [ -e $AML ]; then
 				echo "postinst build for ${MAX9X} ACPI SSDT-overlay ${IPU}/${BOARD}_${SENSOR}.aml" >&2
 
@@ -118,7 +122,7 @@ case "$1" in
 
 				# Substitute the variable into the debconf template
 				# Note: The 'asl-info' key must match the placeholder in the templates file
-				db_subst intel-mipi-gmsl-dkms/max96724-cexd-intrbl asl-info "${ASL_DEFINES}"
+				db_subst $DKMS_PACKAGE_NAME/${BOARD} asl-info "${ASL_DEFINES}"
 
 				# Reset the 'seen' flag to ensure the note is always displayed during testing
 				db_fset intel-mipi-gmsl-dkms/${BOARD} seen false
@@ -139,6 +143,12 @@ case "$1" in
 			fi
 		else
 			echo "postinst build fallback on ${MAX9X} and ${D4XX} ACPI built-in PDATA (SKIP_MAXIM_SERDES=1) " >&2
+
+			# apply failsafe : mitigate risk of kernel boot failure when:
+			# - user-defined UEFI builtin Camera PDATA are incorrect
+			sed -i "s/^# \(blacklist intel_ipu6_isys$\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+			sed -i "s/^# \(blacklist intel_ipu7_isys$\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+
 			if [ -e /etc/default/grub.d/ssdt.cfg ]; then
 
 				echo "clear /etc/default/grub.d/ssdt.cfg" >&2
