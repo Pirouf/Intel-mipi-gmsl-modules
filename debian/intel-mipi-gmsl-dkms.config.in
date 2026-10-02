@@ -31,7 +31,7 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 		;;
             serdes)
 		# query serdes
-		db_get intel-mipi-gmsl-dkms/max9x 
+		db_get intel-mipi-gmsl-dkms/max9x
 	        if [ "$RET" = "maxim-serdes" ]; then
 		    db_set intel-mipi-gmsl-dkms/acpi-ssdt-camera grub_ssdt_overlay
 		    STATE="board"
@@ -42,6 +42,7 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 		;;
             board)
 		IPU=@defaultipu@
+		SKIP_IPU_USR_MENU=0
 		if command -v lspci > /dev/null; then
 		    # query ipu pciid
 		    PCI_ID=$(lspci | grep "Multimedia controller: Intel Corporation Device" | cut -d " " -f 1)
@@ -51,22 +52,38 @@ while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
 			    #drivers/media/pci/intel/ipu7/ipu7.h
 			    *d719*)
 				IPU=ipu8
+				SKIP_IPU_USR_MENU=1
 				;;
 			    #drivers/media/pci/intel/ipu7/ipu7.h
 			    *645d*|*b05d*)
 				IPU=ipu7
+				SKIP_IPU_USR_MENU=1
 				;;
 			    #drivers/media/pci/intel/ipu.h
 			    *7d19*|*a75d*|*462e*|*465d*|*4e19*|*9a19*)
 				IPU=ipu6
+				SKIP_IPU_USR_MENU=1
 				;;
 			    *)
-				IPU=@defaultipu@
+				SKIP_IPU_USR_MENU=0
 				;;
 			esac
 		    fi
+
+		    if [ $SKIP_IPU_USR_MENU -eq 0 ]; then
+			db_input critical intel-mipi-gmsl-dkms/ipu || true
+			if db_go; then
+			    db_get intel-mipi-gmsl-dkms/ipu
+			    IPU=${RET}
+			else
+			    db_set intel-mipi-gmsl-dkms/ipu ${IPU}
+			fi
+		    else
+			db_set intel-mipi-gmsl-dkms/ipu ${IPU}
+		    fi
+		else
+		    db_set intel-mipi-gmsl-dkms/ipu ${IPU}
 		fi
-		db_set intel-mipi-gmsl-dkms/ipu ${IPU}
 
 		# query board
 		db_subst intel-mipi-gmsl-dkms/board ipuextended "${IPU}"

@@ -14,7 +14,7 @@ defaultpdata := grub_ssdt_overlay
 # maxim-serdes Deserializer AIC board types 
 ssdtmaximserdeslist := " max9296-swiss max9296-adv-mioe max9296-seavo max9296-axiomtek max96712-jwipc max96724-servoss max96724-servoss_dphy max96724-cexd-intrbl max96724-adv-usbc"
 defaultssdtipu := ipu7
-defaultssdtboard := max96724-servoss
+defaultssdtboard := max96724-cexd-intrbl
 defaultssdtsensor := d3_isx031
 
 # d4xx-compat Deserializer arch

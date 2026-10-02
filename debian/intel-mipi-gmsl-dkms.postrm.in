@@ -47,8 +47,22 @@ case "$1" in
 				rm -rf /boot/${IPU}_${BOARD}_${SENSOR}_ssdt.img || :
 			fi
 		fi
+		# avoid potential conflict with manually compiled dkms build
+		if [ -d /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION ]; then
+		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION
+		fi
+		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION ]; then
+		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION
+		fi
 	;;
 	upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+		# avoid potential conflict with manually compiled dkms build
+		if [ -d /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION ]; then
+		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION
+		fi
+		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION ]; then
+		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION
+		fi
 	;;
 
 	*)

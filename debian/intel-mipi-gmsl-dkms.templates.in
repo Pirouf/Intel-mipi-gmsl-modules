@@ -2,46 +2,118 @@ Template: intel-mipi-gmsl-dkms/max9x
 Type: select
 Choices: @marchlist@
 Default: @marchdefault@
-Description: Select  GMSL2 Serializer-Deserializer ACPI type [defaut:@marchdefault@]
- probe GMSL2 kernel drivers on Camera ACPI device either for @marchlist@.
+Description: Select the GMSL deserializer kernel driver implementation:
+ Please choose the kernel-space driver module architecture to compile for your
+ Maxim GMSL deserializer (MAX9296,MAX96724) and serializer (MAX9295, MAX96717):
+ .
+  - maxim-serdes: Modern, upstream-aligned Maxim Serializer-Deserializer core.
+                  Utilizes the modern Linux kernel SerDes framework, offering
+                  robust dual-link and quad-link handling.
+  - max9x:        Legacy, standalone MAX96724/MAX9296 custom driver module.
+                  Compiles a dedicated, monolithic device driver with custom,
+                  direct I2C register configurations.
+ .
+ Choosing the modern "maxim-serdes" is highly recommended for newer platforms
+ with multiple synchronous camera streams.
+ .
+ [defaut:@marchdefault@]
 
 Template: intel-mipi-gmsl-dkms/acpi-ssdt-camera
 Type: select
 Choices: @pdatalist@
 Default: @pdatadefault@
-Description: Select ACPI Camera Platform Data (PDATA) type [defaut:@pdatadefault@]
- with compile options either for @pdatalist@.
+Description: Description: Load compiled ACPI SSDT camera overlays via GRUB?
+ This configures GRUB to load custom ACPI SSDT overlays during system boot.
+ Overlays override the default platform firmware to correctly define GMSL/MIPI
+ hardware ports and camera sensor aliases (e.g., isx031, ar0234) with compile
+ options either for @pdatalist@.
+ .
+ BIOS-level camera configurations should be disabled before applying these.
+ .
+ [defaut:@pdatadefault@]
 
 Template: intel-mipi-gmsl-dkms/ipu
 Type: select
 Choices: @ipulist@
 Default: @defaultipu@
-Description: Select Intel IPU [defaut:@defaultipu@] SSDT-overlays.
+Description: Description: Select your Intel platform IPU (Image Processing Unit) generation:
+ Please choose the hardware Image Processing Unit (IPU) generation matching
+ your host system processor:
+ .
+  - ipu6: Alder Lake (ADL), Raptor Lake (RPL) Meteor Lake (MTL) & Arrow Lake (ARL)
+  - ipu7: Panther Lake (PTL)
+  - ipu8: newer platforms
+ .
+ Selecting the correct generation ensures the appropriate driver pipelines,
+ capture streams, and system memory allocations are configured.
+ .
+ [defaut:@defaultipu@].
+
 
 Template: intel-mipi-gmsl-dkms/board
 Type: select
 Choices: ${boardlist}
 Default: @defaultmaximserdes@
-Description: Select ${ipuextended}-to-deserializer [defaut:@defaultmaximserdes@] ACPI devices SSDT-overlays.
+Description: Select the target hardware board/carrier configuration for ${ipuextended}:
+ Please select the host carrier board or development kit where the GMSL
+ deserializers and MIPI modules are physically mounted:
+ .
+  - cexd-intrbl: AAEON CEXD-INTRBL robotics development system
+  - servoss, swiss: Intel-propretary Customer Reference Boards (CRB) Add-in-Cards (AIC)
+  - custom: Custom vendor-defined ODM hardware routing layouts
+ .
+ This selection configures correct board-specific GPIO mappings, physical
+ I2C bus routes, and power-enable lines required to wake the camera sensors.
+ .
+ [defaut:@defaultmaximserdes@]
 
 Template: intel-mipi-gmsl-dkms/sensor
 Type: select
 Choices: ${sensorlist}
 Default: @defaultsensor@
-Description: Select ${boardextended}-to-sensor [defaut:@defaultsensor@] ACPI devices SSDT-overlays.
+Description: Select the camera sensor module linked to the GMSL lines:
+ Please select the camera sensor hardware model mounted to your physical
+ ${boardextended} GMSL deserializer-serializer links:
+ .
+  - ar0234: onsemi 2.3MP Global Shutter sensor
+            Features high-speed capture (up to 90 FPS) and low latency,
+            optimized for robotics motion tracking and edge-AI vision.
+  - d457:   Intel RealSense Active Stereo depth camera
+            Combines global shutter stereo depth imagers, an RGB sensor,
+            and an onboard IMU with GMSL2 serialization for depth mapping.
+  - isx031: Sony 3MP Automotive HDR camera module
+            Features a sub-pixel HDR (120dB) sensor and integrated ISP
+            tuning, designed for harsh lighting and automotive environments.
+  - custom: Custom/unlisted sensor using custom platform ASL files
+ .
+ Choosing the correct sensor initializes proper driver settings, sub-device
+ control configurations, ISP tuning, register mappings, and link frequencies.
+ .
+ [defaut:@defaultsensor@]
 
 Template: intel-mipi-gmsl-dkms/d4xx-compat
 Type: select
 Choices: @d4xxdeserlist@
 Default: @defauld4xxserdes@
-Description: Compile d4xx-compat (legacy <= 1.0.1.31) GMSL2 Serializer-Deserializer [defaut:@defauld4xxserdes@]
-  ACPI PDATA probe GMSL2 kernel drivers on Camera ACPI device either for @d4xxdeserlist@.
+Description: Enable backward compatibility for RealSense D4xx pipelines?
+ Select this option to enable unified legacy driver and interface support
+ designed for Intel RealSense D4xx-series (legacy <= 1.0.1.31) depth cameras.
+ .
+ This configuration option registers legacy sysfs nodes, device structures,
+ and fallback ioctl mappings to allow existing D4xx/RealSense-optimized
+ user-space libraries and applications to run cleanly with GMSL modules
+ with @d4xxdeserlist@.
+ .
+ BIOS-level camera configurations should be enabled after applying these.
+ .
+ [defaut:@defauld4xxserdes@]
 
 
 Template: intel-mipi-gmsl-dkms/max96724-cexd-intrbl
 Type: note
-Description: Selected ${asl-info} onto
-  MAX96724 cexd-intrbl (RevA/RevB) FAKRA connectors
+Description: Please connect ${asl-info} for :
+ MAX96724 cexd-intrbl (RevA/RevB) FAKRA connectors
+ .
    _________             _________
   |    ^    |           |    ^    |
   | (B) (C) |           | (B) (C) |
@@ -49,10 +121,11 @@ Description: Selected ${asl-info} onto
   | (D) (A) |           | (D) (A) |
   | _ _ _ _ |           | _ _ _ _ |
    \_______/             \_______/
-  .
-  MIPI-0 / I2C0          MIPI-2 / I2C1
-  .
-  MAX96724 cexd-intrbl (RevC) FAKRA connectors
+ .
+  MIPI-0 / I2C0         MIPI-2 / I2C1
+ .
+ MAX96724 cexd-intrbl (RevC) FAKRA connectors
+ .
    _________             _________
   |    ^    |           |    ^    |
   | (C) (B) |           | (D) (B) |
@@ -60,14 +133,15 @@ Description: Selected ${asl-info} onto
   | (D) (A) |           | (C) (A) |
   | _ _ _ _ |           | _ _ _ _ |
    \_______/             \_______/
-  .
-  MIPI-0 / I2C0          MIPI-2 / I2C1
+ .
+  MIPI-0 / I2C0         MIPI-2 / I2C1
 
 
 Template: intel-mipi-gmsl-dkms/max96724-servoss
 Type: note
-Description: Selected ${asl-info} onto
-   MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+Description: Please connect ${asl-info} for :
+ .
+ MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
@@ -75,10 +149,10 @@ Description: Selected ${asl-info} onto
   |         |           |         |
   | (A) (D) |           | (A) (D) |
   |____v____|           |____v____|
-  .
-  MIPI-0 / I2C1          MIPI-2 / I2C2
-  .
-  MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
+ .
+  MIPI-0 / I2C1         MIPI-2 / I2C2
+ .
+ MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
@@ -86,14 +160,15 @@ Description: Selected ${asl-info} onto
   |         |           |         |
   | (D) (A) |           | (C) (A) |
   |____v____|           |____v____|
-  .
-  MIPI-0 / I2C1          MIPI-2 / I2C2
+ .
+  MIPI-0 / I2C1         MIPI-2 / I2C2
 
 
 Template: intel-mipi-gmsl-dkms/max96724-servoss_dphy
 Type: note
-Description: Selected ${asl-info} onto
-   MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+Description: Please connect ${asl-info} for :
+ .
+ MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
@@ -101,10 +176,10 @@ Description: Selected ${asl-info} onto
   |         |           |         |
   | (A) (D) |           | (A) (D) |
   |____v____|           |____v____|
-  .
-  MIPI-0 / I2C1          MIPI-2 / I2C2
-  .
-  MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
+ .
+  MIPI-0 / I2C1         MIPI-2 / I2C2
+ .
+ MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
@@ -112,14 +187,15 @@ Description: Selected ${asl-info} onto
   |         |           |         |
   | (D) (A) |           | (C) (A) |
   |____v____|           |____v____|
-  .
-  MIPI-0 / I2C1          MIPI-2 / I2C2
+ .
+  MIPI-0 / I2C1         MIPI-2 / I2C2
 
 
 Template: intel-mipi-gmsl-dkms/max9296-swiss
 Type: note
-Description: Selected ${asl-info} onto
-  MAX9296 AIC (Swiss mountain RevA) FAKRA connectors
+Description: Please connect ${asl-info} for :
+ .
+ MAX9296 AIC (Swiss mountain RevA) FAKRA connectors
     _______
    /_ _ _ _\
   |         |
@@ -127,12 +203,18 @@ Description: Selected ${asl-info} onto
   |         |
   | (A) (D) |
   |____v____|
-  .
+ .
   MIPI-0 / I2C0 (MAX9296-1 GMSL A & B Links)
   MIPI-4 / I2C1 (MAX9296-2 GMSL C & D Links)
 
 
 Template: intel-mipi-gmsl-dkms/custom
 Type: note
-Description: Selected ${asl-info} onto
-  Unknown Fakra connector.
+Description: Please connect ${asl-info} for :
+ Custom vendor-defined ODM hardware routing FAKRA connector.
+
+
+Template: intel-mipi-gmsl-dkms/mipi-direct
+Type: note
+Description: Please connect ${asl-info} for :
+ Custom vendor-defined ODM hardware routing MIPI connector.

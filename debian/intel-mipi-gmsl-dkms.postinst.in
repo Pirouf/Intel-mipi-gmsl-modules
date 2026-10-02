@@ -120,6 +120,9 @@ case "$1" in
 				# Note: The 'asl-info' key must match the placeholder in the templates file
 				db_subst intel-mipi-gmsl-dkms/max96724-cexd-intrbl asl-info "${ASL_DEFINES}"
 
+				# Reset the 'seen' flag to ensure the note is always displayed during testing
+				db_fset intel-mipi-gmsl-dkms/${BOARD} seen false
+
 				# Display the screen to the user
 				db_input high intel-mipi-gmsl-dkms/${BOARD} || true
 				db_go || true
