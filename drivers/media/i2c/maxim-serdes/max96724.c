@@ -362,8 +362,10 @@ static unsigned int max96724_phy_id(struct max_des *des, struct max_des_phy *phy
 {
 	unsigned int num_hw_data_lanes = max_des_phy_hw_data_lanes(des, phy);
 
-	/* PHY 1 is the master PHY when combining PHY 0 and PHY 1. */
-	if (phy->index == 0 && num_hw_data_lanes == 4)
+	/* PHY 1 drives the clock/controller in combined mode, even with two data lanes. */
+	if (phy->index == 0 &&
+	    (num_hw_data_lanes == 4 ||
+	     phy->mipi.clock_lane == MAX96724_PHY1_ALT_CLOCK))
 		return 1;
 
 	if (phy->index == 3 && num_hw_data_lanes == 4)
@@ -807,6 +809,7 @@ static int max96724_init_phy(struct max_des *des, struct max_des_phy *phy)
 	unsigned int num_data_lanes = phy->mipi.num_data_lanes;
 	unsigned int dpll_freq = phy->link_frequency * 2;
 	unsigned int num_hw_data_lanes;
+	unsigned int lane_map_index;
 	unsigned int index;
 	unsigned int used_data_lanes = 0;
 	unsigned int val, mask;
@@ -815,6 +818,7 @@ static int max96724_init_phy(struct max_des *des, struct max_des_phy *phy)
 
 	index = max96724_phy_id(des, phy);
 	num_hw_data_lanes = max_des_phy_hw_data_lanes(des, phy);
+	lane_map_index = num_hw_data_lanes == 2 ? phy->index : index;
 
 	ret = regmap_update_bits(priv->regmap, MAX96724_MIPI_TX10(index),
 				 MAX96724_MIPI_TX10_CSI2_LANE_CNT,
@@ -844,9 +848,9 @@ static int max96724_init_phy(struct max_des *des, struct max_des_phy *phy)
 	if (num_hw_data_lanes == 4)
 		mask = MAX96724_MIPI_PHY3_PHY_LANE_MAP_4;
 	else
-		mask = MAX96724_MIPI_PHY3_PHY_LANE_MAP_2(index);
+		mask = MAX96724_MIPI_PHY3_PHY_LANE_MAP_2(lane_map_index);
 
-	ret = regmap_update_bits(priv->regmap, MAX96724_MIPI_PHY3(index),
+	ret = regmap_update_bits(priv->regmap, MAX96724_MIPI_PHY3(lane_map_index),
 				 mask, field_prep(mask, val));
 	if (ret)
 		return ret;
@@ -873,9 +877,10 @@ static int max96724_init_phy(struct max_des *des, struct max_des_phy *phy)
 		if (ret)
 			return ret;
 	} else {
-		ret = regmap_update_bits(priv->regmap, MAX96724_MIPI_PHY5(index),
-					 MAX96724_MIPI_PHY5_PHY_POL_MAP_2(index),
-					 field_prep(MAX96724_MIPI_PHY5_PHY_POL_MAP_2(index), val));
+		ret = regmap_update_bits(priv->regmap, MAX96724_MIPI_PHY5(lane_map_index),
+					 MAX96724_MIPI_PHY5_PHY_POL_MAP_2(lane_map_index),
+					 field_prep(MAX96724_MIPI_PHY5_PHY_POL_MAP_2(lane_map_index),
+						    val));
 		if (ret)
 			return ret;
 
@@ -991,11 +996,26 @@ static int max96724_set_phy_enable(struct max_des *des, struct max_des_phy *phy,
 	unsigned int num_hw_data_lanes;
 	unsigned int mask;
 
+	/*
+	 * The master PHY enables both halves of a combined output. Do not
+	 * clear its clock half when visiting the unused partner PHY.
+	 */
+	if (!enable && phy->index == 1 && des->phys[0].enabled &&
+	    (max_des_phy_hw_data_lanes(des, &des->phys[0]) == 4 ||
+	     des->phys[0].mipi.clock_lane == MAX96724_PHY1_ALT_CLOCK))
+		return 0;
+
+	if (!enable && phy->index == 2 && des->phys[3].enabled &&
+	    max_des_phy_hw_data_lanes(des, &des->phys[3]) == 4)
+		return 0;
+
 	num_hw_data_lanes = max_des_phy_hw_data_lanes(des, phy);
 
-	if (num_hw_data_lanes == 4)
-		/* PHY 1 -> bits [1:0] */
-		/* PHY 2 -> bits [3:2] */
+	if (phy->index == 0 &&
+	    phy->mipi.clock_lane == MAX96724_PHY1_ALT_CLOCK)
+		mask = MAX96724_MIPI_PHY2_PHY_STDB_N_4(1);
+	else if (num_hw_data_lanes == 4)
+		/* PHY 0/1 -> bits [5:4], PHY 2/3 -> bits [7:6]. */
 		mask = MAX96724_MIPI_PHY2_PHY_STDB_N_4(index);
 	else
 		mask = MAX96724_MIPI_PHY2_PHY_STDB_N_2(index);
