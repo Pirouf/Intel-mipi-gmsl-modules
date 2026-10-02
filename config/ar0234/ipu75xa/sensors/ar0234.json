@@ -19,7 +19,7 @@
     "Sensor": [
       {
         "name": "ar0234_acpi-1",
-        "description": "AR0234 GMSL Sensor 1",
+        "description": "AR0234 (mono) GMSL a-0",
         "vcCount": 4,
         "vcId": 0,
         "vcGroupId": 0,
@@ -31,7 +31,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 0", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES0.CH00.SER0.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -211,7 +211,7 @@
       },
       {
         "name": "ar0234_acpi-2",
-        "description": "AR0234 GMSL Sensor 2",
+        "description": "AR0234 (mono) GMSL b-0",
         "vcCount": 4,
         "vcId": 1,
         "vcGroupId": 0,
@@ -223,7 +223,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 1", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES0.CH01.SER1.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -403,7 +403,7 @@
       },
       {
         "name": "ar0234_acpi-3",
-        "description": "AR0234 GMSL Sensor 3",
+        "description": "AR0234 (mono) GMSL c-0",
         "vcCount": 4,
         "vcId": 2,
         "vcGroupId": 0,
@@ -415,7 +415,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 2", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CAM2", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -595,7 +595,7 @@
       },
       {
         "name": "ar0234_acpi-4",
-        "description": "AR0234 GMSL Sensor 4",
+        "description": "AR0234 (mono) GMSL d-0",
         "vcCount": 4,
         "vcId": 3,
         "vcGroupId": 0,
@@ -607,7 +607,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 3", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 0", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES0.CH02.SER2.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES0.CH03.SER3.CAM3", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -787,7 +787,7 @@
       },
       {
         "name": "ar0234_acpi-5",
-        "description": "AR0234 GMSL Sensor 5",
+        "description": "AR0234 (mono) GMSL a-2",
         "vcCount": 4,
         "vcId": 0,
         "vcGroupId": 0,
@@ -799,7 +799,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 16", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES1.CH01.SER1.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES1.CH00.SER0.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -979,7 +979,7 @@
       },
       {
         "name": "ar0234_acpi-6",
-        "description": "AR0234 GMSL Sensor 6",
+        "description": "AR0234 (Mono) GMSL b-2",
         "vcCount": 4,
         "vcId": 1,
         "vcGroupId": 0,
@@ -991,7 +991,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 17", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES1.CH01.SER1.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES1.CH01.SER1.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -1171,7 +1171,7 @@
       },
       {
         "name": "ar0234_acpi-7",
-        "description": "AR0234 GMSL Sensor 7",
+        "description": "AR0234 (Mono) GMSL c-2",
         "vcCount": 4,
         "vcId": 2,
         "vcGroupId": 0,
@@ -1183,7 +1183,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 18", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES1.CH02.SER2.CH00.CAM0", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES1.CH02.SER2.CAM2", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
@@ -1363,7 +1363,7 @@
       },
       {
         "name": "ar0234_acpi-8",
-        "description": "AR0234 GMSL Sensor 8",
+        "description": "AR0234 (Mono) GMSL d-2",
         "vcCount": 4,
         "vcId": 3,
         "vcGroupId": 0,
@@ -1375,7 +1375,7 @@
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 19", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
-              { "acpiName": "\\_SB_.PC00.DES1.CH02.SER2.CH01.CAM1", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
+              { "acpiName": "\\_SB_.PC00.DES1.CH03.SER3.CAM3", "videoNodeType": "VIDEO_PIXEL_ARRAY" }
             ]
           }
         ],
