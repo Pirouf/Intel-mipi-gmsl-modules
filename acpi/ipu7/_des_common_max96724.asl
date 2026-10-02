@@ -16,6 +16,7 @@
  *   DES_FSIN_GPIO_PIN      - (Optional) DES GPIO pin number, used in GpioIo (e.g. 7 for MFP7 on MAX96724,
  *                            used to receive the external GMSL frame sync trigger pulse)
  *   LINK_FREQ              - Optional link frequency; defaults to 1 GHz
+ *   DES_CLOCK_LANE         - Optional output clock lane; defaults to 0
  */
 
 #ifndef LINK_FREQ
@@ -205,7 +206,11 @@ Name (PRT4, Package()
     ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
     Package ()
     {
+        #ifdef DES_CLOCK_LANE
+        Package () { "mipi-img-clock-lane", DES_CLOCK_LANE },
+        #else
         Package () { "mipi-img-clock-lane", 0 },
+        #endif
         #if DES_LANES == 4
         Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },       // 4 lanes for DPHY on Intel MIPI CRD
         #else
