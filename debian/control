@@ -20,6 +20,7 @@ Depends:
  dkms,
  pahole,
  cpio,
+ gawk,
  pciutils,
  v4l-utils (>= 1.30~),
  grub-efi-amd64,
@@ -28,7 +29,7 @@ Provides: ipu7-modules
 Conflicts: ipu7-modules, intel-ipu6-dkms
 Replaces: ipu7-modules, intel-ipu6-dkms
 XB-Modaliases: ${modaliases}
-Description: Intel Integrated Image Processing Unit 6/7 (IPU6/IPU7) drivers
- This package provides kernel drivers for GMSL2 cameras through the Intel IPU7
- on Intel Panther Lake and the Intel IPU6
- on Intel Alder Lake, Raptor Lake, Meteor Lake and Arrow lake platforms.
+Description: Intel Integrated Image Processing Unit 6/7/8 (IPU6/IPU7/IPU8) drivers
+ This package provides kernel drivers for MIPI/GMSL2 cameras through the
+ Intel Alder Lake, Raptor Lake, Meteor Lake, Arrow lake and Panther Lake platforms.
+ .
