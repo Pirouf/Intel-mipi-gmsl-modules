@@ -59,6 +59,7 @@ Description: Select the target hardware board/carrier configuration for ${ipuext
  deserializers and MIPI modules are physically mounted:
  .
   - cexd-intrbl: AAEON CEXD-INTRBL robotics development system
+  - air355: Advantech AIR Edge AI system
   - servoss, swiss: Intel-propretary Customer Reference Boards (CRB) Add-in-Cards (AIC)
   - custom: Custom vendor-defined ODM hardware routing layouts
  .
@@ -112,7 +113,7 @@ Description: Enable backward compatibility for RealSense D4xx pipelines?
 Template: intel-mipi-gmsl-dkms/max96724-cexd-intrbl
 Type: note
 Description: Please connect ${asl-info} for :
- MAX96724 cexd-intrbl (RevA/RevB) FAKRA connectors
+ MAX96724 CPHY cexd-intrbl (RevA/RevB) FAKRA connectors
  .
    _________             _________
   |    ^    |           |    ^    |
@@ -124,7 +125,7 @@ Description: Please connect ${asl-info} for :
  .
   MIPI-0 / I2C0         MIPI-2 / I2C1
  .
- MAX96724 cexd-intrbl (RevC) FAKRA connectors
+ MAX96724 CPHY cexd-intrbl (RevC) FAKRA connectors
  .
    _________             _________
   |    ^    |           |    ^    |
@@ -137,28 +138,33 @@ Description: Please connect ${asl-info} for :
   MIPI-0 / I2C0         MIPI-2 / I2C1
 
 
+Template: intel-mipi-gmsl-dkms/max96724-air355
+Type: note
+Description: Please connect ${asl-info} for :
+ MAX96724 DPHY AIR-355 GMSL-TypeC-DP (RevA) FAKRA connectors
+ .
+   _________             _________
+  |    ^    |           |    ^    |
+  | (C) (A) |           | (C) (A) |
+  |         |           |         |
+  | (D) (B) |           | (D) (B) |
+  | _ _ _ _ |           | _ _ _ _ |
+   \_______/             \_______/
+ .
+  MIPI-0 / I2C1         MIPI-2 / I2C2
+
+
 Template: intel-mipi-gmsl-dkms/max96724-servoss
 Type: note
 Description: Please connect ${asl-info} for :
  .
- MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+ MAX96724 AIC (Servoss mountain RevA/RevB) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
   | (B) (C) |           | (B) (C) |
   |         |           |         |
   | (A) (D) |           | (A) (D) |
-  |____v____|           |____v____|
- .
-  MIPI-0 / I2C1         MIPI-2 / I2C2
- .
- MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
-    _______               _______
-   /_ _ _ _\             /_ _ _ _\
-  |         |           |         |
-  | (C) (B) |           | (D) (B) |
-  |         |           |         |
-  | (D) (A) |           | (C) (A) |
   |____v____|           |____v____|
  .
   MIPI-0 / I2C1         MIPI-2 / I2C2
@@ -168,7 +174,7 @@ Template: intel-mipi-gmsl-dkms/max96724-servoss_dphy
 Type: note
 Description: Please connect ${asl-info} for :
  .
- MAX96724 AIC (Servoss mountain RevA) FAKRA connectors
+ MAX96724 DPHY AIC (Servoss mountain RevA) FAKRA connectors
     _______               _______
    /_ _ _ _\             /_ _ _ _\
   |         |           |         |
@@ -178,24 +184,13 @@ Description: Please connect ${asl-info} for :
   |____v____|           |____v____|
  .
   MIPI-0 / I2C1         MIPI-2 / I2C2
- .
- MAX96724 AIC (Servoss mountain RevB) FAKRA connectors
-    _______               _______
-   /_ _ _ _\             /_ _ _ _\
-  |         |           |         |
-  | (C) (B) |           | (D) (B) |
-  |         |           |         |
-  | (D) (A) |           | (C) (A) |
-  |____v____|           |____v____|
- .
-  MIPI-0 / I2C1         MIPI-2 / I2C2
 
 
 Template: intel-mipi-gmsl-dkms/max9296-swiss
 Type: note
 Description: Please connect ${asl-info} for :
  .
- MAX9296 AIC (Swiss mountain RevA) FAKRA connectors
+ MAX9296 DPHY AIC (Swiss mountain RevA) FAKRA connectors
     _______
    /_ _ _ _\
   |         |
