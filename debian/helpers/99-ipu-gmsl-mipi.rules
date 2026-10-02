@@ -13,13 +13,16 @@ SUBSYSTEM=="d4xx-class", KERNEL=="d4xx-dfu*", GROUP="video", MODE="0660"
 # video links for SDK, binding max9x UEFI builtin Camera PDATA ACPI for ipu6/ipu7/ipu8
 SUBSYSTEM=="video4linux", ATTR{name}=="DS5 mux ?-[0-9]", RUN+="/bin/bash -c '/usr/share/camera/rs_ipu_d457_bind.sh -n > /dev/kmsg; /usr/share/camera/rs-enum-ipu.sh -n -q > /dev/kmsg'"
 
-# video links for SDK, binding maxim-serdes/max9295 SSDT-overlay ACPI for ipu6/ipu7/ipu8
-SUBSYSTEM=="video4linux", ATTR{name}=="INTC1138", RUN+="/bin/bash -c '/usr/share/camera/acpi/mc-setup.sh > /dev/kmsg'"
+# video links for SDK, binding maxim-serdes/max9295b SSDT-overlay ACPI for ipu6/ipu7/ipu8
+#  (e.g .used udevadm info -a -p $(udevadm info -q path -n $(media-ctl -e "max96717 5-0042")) )
+SUBSYSTEM=="video4linux", ATTR{name}=="max96717 *", RUN+="/bin/bash -c '/usr/share/camera/acpi/mc-setup.sh > /dev/kmsg'"
 
 # video links for SDK, binding maxim-serdes/max9295d SSDT-overlay ACPI for ipu6/ipu7/ipu8
-SUBSYSTEM=="video4linux", ATTR{name}=="INTC1140", RUN+="/bin/bash -c '/usr/share/camera/acpi/mc-setup-zedx.sh > /dev/kmsg'"
+#  (e.g .used udevadm info -a -p $(udevadm info -q path -n $(media-ctl -e "max96717 16-0062")) )
+#SUBSYSTEM=="video4linux", ATTR{name}=="max96717 *", RUN+="/bin/bash -c '/usr/share/camera/acpi/mc-setup-zedx.sh > /dev/kmsg'"
 
 # video links for SDK, binding  binding maxim-serdes SSDT-overlay ACPI for ipu6/ipu7/ipu8
+#  (e.g .used udevadm info -a -p $(udevadm info -q path -n $(media-ctl -e "max96717 16-0062")) )
 SUBSYSTEM=="video4linux", ATTR{name}=="INTC10CD", RUN+="/bin/bash -c '/usr/share/camera/acpi/mc-setup.sh > /dev/kmsg; /usr/share/camera/acpi/upstream-rs-enum.sh > /dev/kmsg'"
 
 # default max96724 gmsl link_freq override for PTL ipu6/ipu7 DWC DPHY and CPHY
