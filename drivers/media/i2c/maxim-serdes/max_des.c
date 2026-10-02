@@ -1768,6 +1768,7 @@ static int max_des_ser_attach_addr(struct max_des_priv *priv, u32 chan_id,
 	struct max_des *des = priv->des;
 	struct max_des_link *link = &des->links[chan_id];
 	bool reattach = link->ser_xlate.en;
+	unsigned int mask = 0;
 	int i, min, max;
 	int ret = 0;
 
@@ -1814,15 +1815,33 @@ static int max_des_ser_attach_addr(struct max_des_priv *priv, u32 chan_id,
 	if (ret) {
 		dev_err(priv->dev, "Cannot find serializer for link %u\n",
 			link->index);
-		return -ENOENT;
+		ret = -ENOENT;
+	} else {
+		link->version = i;
+		link->ser_xlate.src = alias;
+		link->ser_xlate.dst = addr;
+		link->ser_xlate.en = true;
 	}
 
-	link->version = i;
-	link->ser_xlate.src = alias;
-	link->ser_xlate.dst = addr;
-	link->ser_xlate.en = true;
+	if (des->ops->use_atr) {
+		unsigned int j;
+		int restore_ret;
 
-	return 0;
+		for (j = 0; j < des->ops->num_links; j++) {
+			if (des->links[j].ser_xlate.en)
+				mask |= BIT(j);
+		}
+
+		restore_ret = des->ops->select_links(des, mask);
+		if (restore_ret) {
+			dev_err(priv->dev, "Failed to restore attached links: %d\n",
+				restore_ret);
+			if (!ret)
+				ret = restore_ret;
+		}
+	}
+
+	return ret;
 }
 
 #if IS_REACHABLE(CONFIG_I2C_ATR)
@@ -1912,7 +1931,7 @@ static int max_des_i2c_atr_init(struct max_des_priv *priv)
 	for (i = 0; i < des->ops->num_links; i++) {
 		struct max_des_link *link = &des->links[i];
 
-		if (!link->enabled)
+		if (!link->ser_xlate.en)
 			continue;
 
 		mask |= BIT(link->index);
