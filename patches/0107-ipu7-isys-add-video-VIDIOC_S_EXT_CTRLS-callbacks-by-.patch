@@ -1,4 +1,4 @@
-From dd76fa5b04826e57036f82390e06e1453dab19ac Mon Sep 17 00:00:00 2001
+From 031926aeab9655bcad3e28e9733384804df79733 Mon Sep 17 00:00:00 2001
 From: florent pirou <florent.pirou@intel.com>
 Date: Tue, 28 Apr 2026 10:31:00 -0700
 Subject: [PATCH 107/112] ipu7-isys: add video VIDIOC_S_EXT_CTRLS callbacks by
@@ -8,17 +8,18 @@ Subject: [PATCH 107/112] ipu7-isys: add video VIDIOC_S_EXT_CTRLS callbacks by
 * isys-csi: add graph walk subdev to get frame desc by streamid
 * isys-csi: add graph walk subdev to enable/disable streams by streamid
 * isys-video: add V4L2_CID_IPU definitions
+* isys-video, isys-csi: add csi subdev doesn't support source multiplexing
 
 Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
  .../media/pci/intel/ipu7/ipu7-isys-csi-phy.c  |  85 ++-
  .../media/pci/intel/ipu7/ipu7-isys-csi-phy.h  |   4 +
- .../media/pci/intel/ipu7/ipu7-isys-csi2.c     | 457 +++++++++++-
+ .../media/pci/intel/ipu7/ipu7-isys-csi2.c     | 481 +++++++++++-
  .../media/pci/intel/ipu7/ipu7-isys-csi2.h     |  11 +
  .../pci/intel/ipu7/ipu7-isys-video-ext.h      |  61 ++
- .../media/pci/intel/ipu7/ipu7-isys-video.c    | 668 +++++++++++++++++-
+ .../media/pci/intel/ipu7/ipu7-isys-video.c    | 701 +++++++++++++++++-
  .../media/pci/intel/ipu7/ipu7-isys-video.h    |   4 +
- 7 files changed, 1280 insertions(+), 10 deletions(-)
+ 7 files changed, 1337 insertions(+), 10 deletions(-)
  create mode 100644 ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video-ext.h
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi-phy.c
@@ -190,7 +191,7 @@ index dfdcb61..7e36837 100644
  void ipu7_isys_csi_phy_powerdown(struct ipu7_isys_csi2 *csi2);
  #endif
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c
-index 8d71adf..6d0199f 100644
+index 8d71adf..ca70ca9 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c
 @@ -26,6 +26,9 @@
@@ -468,7 +469,7 @@ index 8d71adf..6d0199f 100644
  	.has_pad_interdep = v4l2_subdev_has_pad_interdep,
  };
  
-@@ -562,3 +747,261 @@ int ipu7_isys_csi2_get_remote_desc(u32 source_stream,
+@@ -562,3 +747,285 @@ int ipu7_isys_csi2_get_remote_desc(u32 source_stream,
  
  	return 0;
  }
@@ -489,8 +490,10 @@ index 8d71adf..6d0199f 100644
 +	struct media_entity *entity;
 +	struct media_device *mdev;
 +	struct v4l2_subdev *sd;
++	struct v4l2_subdev_state *state;
 +	unsigned int pad_id;
 +	u32 stream_id = source_stream;
++	u32 other_pad, other_stream;
 +	unsigned int i;
 +	int ret;
 +
@@ -502,8 +505,30 @@ index 8d71adf..6d0199f 100644
 +	if (!pad)
 +		return -EPIPE;
 +
-+	dev_dbg(dev, "%s: source pad/stream:%u/%u\n", __func__,pad->index, source_stream);
 +	pad_id = pad->index;
++       /*
++        * The isys subdev doesn't support source multiplexing
++	* streams_source=0 (V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING)
++        * graph walk shall inherite inherite from streams_sink.
++        */
++	state = v4l2_subdev_get_unlocked_active_state(&csi2->asd.sd);
++	if (!state)
++		return -EPIPE;
++
++	dev_dbg(dev, "%s: pad/stream:%u/%u\n", __func__,
++		pad_id, stream_id);
++	ret = v4l2_subdev_routing_find_opposite_end(&state->routing,
++						    pad_id,
++						    stream_id,
++						    &other_pad,
++						    &other_stream);
++	if (ret) {
++		return -EPIPE;
++		goto error_graph_walk_source;
++	}
++	dev_dbg(dev, "%s: other pad/stream:%u/%u\n", __func__,
++		other_pad,
++		other_stream);
 +	entity = source_entity;
 +	mdev = entity->graph_obj.mdev;
 +	if (!mdev) {
@@ -818,7 +843,7 @@ index 0000000..7487242
 +
 +#endif /* IPU7_ISYS_VIDEO_EXT_H */
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index b63330a..8a8fbe0 100644
+index b63330a..82d425c 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 @@ -38,6 +38,9 @@
@@ -1182,7 +1207,7 @@ index b63330a..8a8fbe0 100644
 +
 +	if (vb2_is_busy(&av->aq.vbq))
 +		return -EBUSY;
-+
+ 
 +	__ipu_isys_vidioc_try_fmt_vid_cap(av, f);
 +
 +	if (av->enum_link_state == IPU7_ISYS_LINK_STATE_DONE) {
@@ -1206,7 +1231,7 @@ index b63330a..8a8fbe0 100644
 +		ret = media_pipeline_enumerate_by_stream_cb(av, ipu7_isys_set_fmt_subdev, &fmt);
 +		if (ret)
 +			return -EINVAL;
- 
++
 +		/* TODO: set format for CSI-2
 +		do {
 +			// Non-subdev nodes can be safely ignored here.
@@ -1232,7 +1257,7 @@ index b63330a..8a8fbe0 100644
  	return 0;
  unlock:
  	v4l2_subdev_unlock_state(s_state);
-@@ -912,6 +1253,289 @@ out_media_entity_stop_streaming_firmware:
+@@ -912,6 +1253,322 @@ out_media_entity_stop_streaming_firmware:
  	return ret;
  }
  
@@ -1439,8 +1464,10 @@ index b63330a..8a8fbe0 100644
 +	struct ipu7_isys_stream *stream = av->stream;
 +	struct ipu7_isys_subdev *asd;
 +	struct v4l2_subdev *sd;
++	struct v4l2_subdev_state *state;
 +	unsigned int pad_id;
 +	u32 stream_id;
++	u32 other_pad, other_stream;
 +	int ret = -ENOLINK;
 +
 +	if (!remote_pad) {
@@ -1459,11 +1486,42 @@ index b63330a..8a8fbe0 100644
 +		goto error_graph_walk_source;
 +	}
 +	stream_id = ipu7_isys_get_src_stream_by_src_pad(sd, pad_id);
-+	dev_dbg(dev,
-+		"%s(): Check %s (vc=%u) inheritence from %s pad/stream %u/%u\n",
-+		__func__, av->vdev.name, av->vc,
-+		sd->name, pad_id, stream_id);
 +
++       /*
++        * The isys subdev doesn't support source multiplexing
++	* streams_source=0 (V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING)
++        *  graph walk shall inherite inherite from streams_sink.
++        */
++	state = v4l2_subdev_get_unlocked_active_state(sd);
++	if (!state)
++		goto error_graph_walk_source;
++
++	dev_dbg(dev, "%s: source pad/stream:%u/%u\n", __func__,
++		pad_id, stream_id);
++
++	other_pad = pad_id;
++	struct v4l2_subdev_krouting *routing = &state->routing;
++	for (i = 0; i < routing->num_routes; ++i) {
++		struct v4l2_subdev_route *route = &routing->routes[i];
++
++		dev_dbg(dev, "%s: route pad/stream:%u/%u\n", __func__,
++			route->source_pad, route->source_stream);
++		if (route->source_pad == pad_id &&
++		    route->source_stream == stream_id) {
++			other_pad = route->sink_pad;
++			other_stream = route->sink_stream;
++			break;
++		}
++	}
++	if (other_pad == pad_id)
++		goto error_graph_walk_source;
++
++	stream_id=other_stream;
++
++	dev_dbg(dev,
++		"%s(): Check %s (vc=%u) inheritence from %s sink_pad/stream %u/%u\n",
++		__func__, av->vdev.name, av->vc,
++		sd->name, other_pad, stream_id);
 +	mutex_lock(&mdev->graph_mutex);
 +	ret = media_graph_walk_init(&graph, mdev);
 +	if (ret)
@@ -1522,7 +1580,7 @@ index b63330a..8a8fbe0 100644
  static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
  	.vidioc_querycap = ipu7_isys_vidioc_querycap,
  	.vidioc_enum_fmt_vid_cap = ipu7_isys_vidioc_enum_fmt,
-@@ -928,6 +1552,11 @@ static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
+@@ -928,6 +1585,11 @@ static const struct v4l2_ioctl_ops ipu7_v4l2_ioctl_ops = {
  	.vidioc_streamon = vb2_ioctl_streamon,
  	.vidioc_streamoff = vb2_ioctl_streamoff,
  	.vidioc_expbuf = vb2_ioctl_expbuf,
@@ -1534,7 +1592,7 @@ index b63330a..8a8fbe0 100644
  };
  
  static const struct media_entity_operations entity_ops = {
-@@ -939,7 +1568,11 @@ static const struct v4l2_file_operations isys_fops = {
+@@ -939,7 +1601,11 @@ static const struct v4l2_file_operations isys_fops = {
  	.poll = vb2_fop_poll,
  	.unlocked_ioctl = video_ioctl2,
  	.mmap = vb2_fop_mmap,
@@ -1546,7 +1604,7 @@ index b63330a..8a8fbe0 100644
  #ifdef CONFIG_VIDEO_INTEL_IPU7_ISYS_RESET
  	.release = video_release,
  #else
-@@ -1068,6 +1701,14 @@ int ipu7_isys_setup_video(struct ipu7_isys_video *av,
+@@ -1068,6 +1734,14 @@ int ipu7_isys_setup_video(struct ipu7_isys_video *av,
  
  	v4l2_subdev_unlock_state(state);
  
@@ -1561,7 +1619,7 @@ index b63330a..8a8fbe0 100644
  	ret = ipu7_isys_csi2_get_remote_desc(route->sink_stream,
  					     to_ipu7_isys_csi2(asd),
  					     *source_entity, &entry,
-@@ -1165,8 +1806,28 @@ int ipu7_isys_video_init(struct ipu7_isys_video *av)
+@@ -1165,8 +1839,28 @@ int ipu7_isys_video_init(struct ipu7_isys_video *av)
  	if (ret)
  		goto out_media_entity_cleanup;
  
@@ -1590,7 +1648,7 @@ index b63330a..8a8fbe0 100644
  out_media_entity_cleanup:
  	vb2_video_unregister_device(&av->vdev);
  	media_entity_cleanup(&av->vdev.entity);
-@@ -1182,6 +1843,9 @@ out_mutex_destroy:
+@@ -1182,6 +1876,9 @@ out_mutex_destroy:
  
  void ipu7_isys_video_cleanup(struct ipu7_isys_video *av)
  {
