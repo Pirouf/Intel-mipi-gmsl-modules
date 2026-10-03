@@ -157,7 +157,7 @@ else
 fi
 
 # Find IPU PCI device gen name
-cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
+cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7|8]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 [[ -z "${cap_prefix}" ]] && exit 0
 cap_prefix_lower=$(echo "${cap_prefix}" | tr '[:upper:]' '[:lower:]')
 
@@ -211,6 +211,14 @@ for camera in $mux_list; do
 	cap_pad="${media_mux_capture_pad[${mux}]}"
 	isys_cap="$((${media_mux_capture_link[${csi2}]}+${cap_pad}))"
 
+	# WA: the IPU7/IPU8 isys subdev doesn't support src_pad multiplexing
+	#  streams=0 (e.g. V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING)
+	if [ "$cap_prefix" == "IPU6" ]; then
+	    cap_stream=$stream_id
+	else
+	    cap_stream=0
+	fi
+
 	out $media_ctl_cmd -l "$(des_src_pad ${camera}) -> \"Intel ${cap_prefix} CSI2 ${csi2}\":0[1]"
 	out $media_ctl_cmd -l "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1)) -> \"Intel ${cap_prefix} ISYS Capture ${isys_cap}\":0[1]"
 
@@ -250,7 +258,7 @@ for camera in $mux_list; do
 	out $media_ctl_cmd -V "$(des_src_pad ${camera})/${streamid} ${fmt}"
 
 	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":0/${streamid} ${fmt}"
-	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1))/0 ${fmt}"
+	out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":$((${cap_pad}+1))/${cap_stream} ${fmt}"
 
 	cap_dev=$($media_ctl_cmd -e "Intel ${cap_prefix} ISYS Capture ${isys_cap}")
 	dev_ln="/dev/video-${sensor}-${camera}"
