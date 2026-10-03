@@ -1,15 +1,18 @@
-From bf3d73d3fdcef3b2521e22b45bbeb02fde3c3555 Mon Sep 17 00:00:00 2001
+From 76dacf55536016bb59e19af92ec7dc49f1cb7d05 Mon Sep 17 00:00:00 2001
 From: Florent Pirou <florent.pirou@intel.com>
 Date: Sat, 17 Jan 2026 02:08:28 -0700
 Subject: [PATCH 106/112] ipu7-isys : add d4xx pixel format support
 
-Signed-off-by: Florent Pirou <florent.pirou@intel.com>
+* add missing D4XX calibration and metadata format
+* ordered Z16 before UYVY
+
+Signed-off-by: florent pirou <florent.pirou@intel.com>
 ---
- .../drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h        | 1 +
- ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c     | 2 ++
- ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c   | 1 +
- ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c    | 3 +++
- 4 files changed, 7 insertions(+)
+ .../drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h    | 1 +
+ ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-csi2.c | 2 ++
+ .../drivers/media/pci/intel/ipu7/ipu7-isys-subdev.c        | 1 +
+ .../drivers/media/pci/intel/ipu7/ipu7-isys-video.c         | 7 +++++--
+ 4 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h b/ipu7-drivers/drivers/media/pci/intel/ipu7/abi/ipu7_fw_isys_abi.h
 index 5d1e23a..beee6fc 100644
@@ -56,11 +59,24 @@ index e5b92e2..4a2ed17 100644
  {
  	switch (code) {
 diff --git a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-index 577c406..b63330a 100644
+index 577c406..5bfb42d 100644
 --- a/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
 +++ b/ipu7-drivers/drivers/media/pci/intel/ipu7/ipu7-isys-video.c
-@@ -94,10 +94,13 @@ const struct ipu7_isys_pixelformat ipu7_isys_pfmts[] = {
+@@ -81,6 +81,8 @@ const struct ipu7_isys_pixelformat ipu7_isys_pfmts[] = {
+ 	 IPU_INSYS_FRAME_FORMAT_RAW10},
+ 	{V4L2_PIX_FMT_SRGGB10P, 10, 10, MEDIA_BUS_FMT_SRGGB10_1X10,
+ 	 IPU_INSYS_FRAME_FORMAT_RAW10},
++	{V4L2_PIX_FMT_Z16, 16, 16, MEDIA_BUS_FMT_UYVY8_1X16,
++	 IPU_INSYS_FRAME_FORMAT_UYVY}, 	/* D4XX specific prior */
+ 	{V4L2_PIX_FMT_UYVY, 16, 16, MEDIA_BUS_FMT_UYVY8_1X16,
  	 IPU_INSYS_FRAME_FORMAT_UYVY},
+ 	{V4L2_PIX_FMT_YUYV, 16, 16, MEDIA_BUS_FMT_YUYV8_1X16,
+@@ -90,14 +92,15 @@ const struct ipu7_isys_pixelformat ipu7_isys_pfmts[] = {
+ 	{V4L2_PIX_FMT_BGR24, 24, 24, MEDIA_BUS_FMT_RGB888_1X24,
+ 	 IPU_INSYS_FRAME_FORMAT_RGB888},
+ 	/* D4XX specific */
+-	{V4L2_PIX_FMT_Z16, 16, 16, MEDIA_BUS_FMT_UYVY8_1X16,
+-	 IPU_INSYS_FRAME_FORMAT_UYVY},
  	{V4L2_PIX_FMT_Y8I, 16, 16, MEDIA_BUS_FMT_VYUY8_1X16,
  	 IPU_INSYS_FRAME_FORMAT_UYVY},
 +	{ V4L2_PIX_FMT_Y10, 16, 10, MEDIA_BUS_FMT_Y10_1X10,
