@@ -48,11 +48,9 @@ case "$1" in
 			fi
 		fi
 		# avoid potential conflict with manually compiled dkms build
-		if [ -d /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION ]; then
-		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION
-		fi
-		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION ]; then
-		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION
+		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
+		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
+		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
 		fi
 		# avoid leftover blacklist
 		if [ -f /etc/modprobe.d/blacklist-intel-ipu.conf ]; then
@@ -61,11 +59,9 @@ case "$1" in
 	;;
 	upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
 		# avoid potential conflict with manually compiled dkms build
-		if [ -d /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION ]; then
-		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-$DKMS_VERSION
-		fi
-		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION ]; then
-		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME/$DKMS_VERSION
+		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
+		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
+		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
 		fi
 	;;
 
