@@ -99,7 +99,7 @@ ${v4l2_util} --list-devices | awk '/ipu/ { in_ipu=1; next } /^[^[:space:]]/ && i
 done
 
 # Find IPU PCI device gen name
-cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
+cap_prefix=$(${v4l2_util} --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7|8]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 [[ -z "${cap_prefix}" ]] && exit 0
 
 # D4XX requires IPU7/IPU6 ISYS Capture devices to bind to IPU7/IPU6 ISYS CSI subdev srcpads from 1-16
@@ -207,6 +207,17 @@ for camera in ${mux_list}; do
 
   stream_id_depth=$((${isys_pad}+0))
   stream_id_rgb=$((${isys_pad}+2))
+
+  # WA: the IPU7/IPU8 isys subdev doesn't support src_pad multiplexing
+  #  streams=0 (e.g. V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING)
+  if [ "$cap_prefix" == "IPU6" ]; then
+      isys_cap_stream_depth=$stream_id_depth
+      isys_cap_stream_rgb=$stream_id_rgb
+  else
+      isys_cap_stream_depth=0
+      isys_cap_stream_rgb=0
+  fi
+
   isys_pad_depth=$((${isys_pad}+1))
   isys_pad_rgb=$((${isys_pad}+3))
   isys_vc_depth=$((${media_sensor_csi_route[${isys_pad_depth}]}+0))
@@ -230,6 +241,16 @@ for camera in ${mux_list}; do
 
   stream_id_ir=$((${isys_pad}+4))
   stream_id_imu=$((${isys_pad}+5))
+
+  # WA: the IPU7/IPU8 isys subdev doesn't support src_pad multiplexing
+  #  streams=0 (e.g. V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING)
+  if [ "$cap_prefix" == "IPU6" ]; then
+      isys_cap_stream_ir=$stream_id_ir
+      isys_cap_stream_imu=$stream_id_imu
+  else
+      isys_cap_stream_ir=0
+      isys_cap_stream_imu=0
+  fi
   isys_pad_ir=$((${isys_pad}+5))
   isys_pad_imu=$((${isys_pad}+6))
   isys_vc_ir=$((${media_sensor_csi_route[${isys_pad_ir}]}+0))
@@ -306,25 +327,25 @@ for camera in ${mux_list}; do
   out $media_ctl_cmd -R "\"Intel ${cap_prefix} CSI2 ${csi2}\"[${csi_route}]"
 
   # DEPTH default media bus format
-  out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_depth}/0 ${csi_fmt_depth}"
+  out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_depth}/${isys_cap_stream_depth} ${csi_fmt_depth}"
   out $media_ctl_cmd -V "\"DS5 mux ${camera}\":0/${stream_id_depth} ${fmt_depth}"
   out $media_ctl_cmd -V "\"DS5 mux ${camera}\":1/${stream_id_depth} ${fmt_depth}"
   out $media_ctl_cmd -V "\"D4XX depth ${camera}\":0/${stream_id_depth} ${fmt_depth}"
   # RGB default media bus format
-  out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_rgb}/0 ${csi_fmt_rgb}"
+  out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_rgb}/${isys_cap_stream_rgb} ${csi_fmt_rgb}"
   out $media_ctl_cmd -V "\"DS5 mux ${camera}\":0/${stream_id_rgb} ${fmt_rgb}"
   out $media_ctl_cmd -V "\"DS5 mux ${camera}\":2/${stream_id_rgb} ${fmt_rgb}"
   out $media_ctl_cmd -V "\"D4XX rgb ${camera}\":0/${stream_id_rgb} ${fmt_rgb}"
   # IR default media bus format
   if [[ $ir_active -eq 1 ]]; then
-      out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_ir}/0 ${csi_fmt_ir}"
+      out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_ir}/${isys_cap_stream_ir} ${csi_fmt_ir}"
       out $media_ctl_cmd -V "\"DS5 mux ${camera}\":0/${stream_id_ir} ${fmt_ir}"
       out $media_ctl_cmd -V "\"DS5 mux ${camera}\":3/${stream_id_ir} ${fmt_ir}"
   fi
   out $media_ctl_cmd -V "\"D4XX ir ${camera}\":0/${stream_id_ir} ${fmt_ir}"
   # IMU default media bus format
   if [[ $imu_active -eq 1 ]]; then
-      out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_imu}/0 ${csi_fmt_imu}"
+      out $media_ctl_cmd -V "\"Intel ${cap_prefix} CSI2 ${csi2}\":${isys_pad_imu}/${isys_cap_stream_imu} ${csi_fmt_imu}"
       out $media_ctl_cmd -V "\"DS5 mux ${camera}\":0/${stream_id_imu} ${fmt_imu}"
       out $media_ctl_cmd -V "\"DS5 mux ${camera}\":4/${stream_id_imu} ${fmt_imu}"
   fi
