@@ -988,6 +988,13 @@
             "id":  0 ,
             "configMode": "AUTO",
             "output": [1280, 960],
+            "format": "V4L2_PIX_FMT_SGRBG10",
+            "formats": [
+              {
+                "acpiName": "\\_SB_.PC00.DES1.CH01.SER1.CH01.", "pad": 0, "width": 1280, "height": 960, "stream": 1,
+                "format": "V4L2_MBUS_FMT_SGRBG10_1X10"
+              }
+            ],
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 17", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
@@ -1372,6 +1379,13 @@
             "id":  0 ,
             "configMode": "AUTO",
             "output": [1280, 960],
+            "format": "V4L2_PIX_FMT_SGRBG10",
+            "formats": [
+              {
+                "acpiName": "\\_SB_.PC00.DES1.CH02.SER2.CH01.", "pad": 0, "width": 1280, "height": 960, "stream": 1,
+                "format": "V4L2_MBUS_FMT_SGRBG10_1X10"
+              }
+            ],
             "videonode": [
               { "name": "Intel IPU7 ISYS Capture 19", "videoNodeType": "VIDEO_GENERIC" },
               { "name": "Intel IPU7 CSI2 2", "videoNodeType": "VIDEO_ISYS_RECEIVER" },
