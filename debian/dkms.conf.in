@@ -96,6 +96,10 @@ PATCH[$((++j))]="6.18/0005-ipu-bridge-bkc-backport.patch"
 PATCH_MATCH[$j]="^(6.1[8])"
 PATCH[$((++j))]="6.18/0006-ipu-bridge-add-sensors.patch"
 PATCH_MATCH[$j]="^(6.1[8])"
+PATCH[$((++j))]="6.18/0007-media-mc-Add-INTERNAL-pad-flag.patch"
+PATCH_MATCH[$j]="^(6.1[8])"
+PATCH[$((++j))]="6.18/0008-media-v4l2-async-register-subdev-sensor-api.patch"
+PATCH_MATCH[$j]="^(6.1[8])"
 
 # V4L2 OoT patches 7.0
 PATCH[$((++j))]="7.0/0001-dkms-v4l2-core-makefile-adaptation.patch"
@@ -111,6 +115,8 @@ PATCH_MATCH[$j]="^(7.[0])"
 PATCH[$((++j))]="7.0/0006-ipu-bridge-add-sensors.patch"
 PATCH_MATCH[$j]="^(7.[0])"
 PATCH[$((++j))]="7.0/0007-media-mc-Add-INTERNAL-pad-flag.patch"
+PATCH_MATCH[$j]="^(7.[0])"
+PATCH[$((++j))]="7.0/0008-media-v4l2-async-register-subdev-sensor-api.patch"
 PATCH_MATCH[$j]="^(7.[0])"
 
 # IPU6 drivers Reference OoT patches
