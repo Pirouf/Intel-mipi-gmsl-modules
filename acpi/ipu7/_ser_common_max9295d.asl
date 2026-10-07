@@ -80,12 +80,18 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
         DESCH_SER_PATH,         // ResourceSourceIndex (Path to SER GPIO controller, e.g. "\\_SB.PC00.DESx.CHxx.SERx" based on which Link)
         0)                      // ResourceUsage (Must be 0)
     {
-        DESCH_RESET_GPIO_PIN,
+        DESCH_RESET_GPIO_PIN,   // Pin 7 (e.g. MFP7 on MAX9295d)
 #ifdef DESCH_RESET_GPIO_PIN2
-        DESCH_RESET_GPIO_PIN2,
+        DESCH_RESET_GPIO_PIN2,  // Pin 8 (e.g. MFP8 on MAX9295d)
 #endif
 #ifdef DESCH_EXTRA_GPIO_PIN
         DESCH_EXTRA_GPIO_PIN,
+#endif
+#ifdef DESCH_SER_FSIN_GPIO
+        DESCH_SER_FSIN_GPIO,	// Extra pin (e.g. MFP9 on MAX9295d)
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+        DESCH_SER_FSIN_GPIO_2,  // Extra pin (e.g. MFP10 on MAX9295d)
 #endif
     }
 })
@@ -104,6 +110,16 @@ Name (_DSD, Package ()  // _DSD: Device-Specific Data
         // I2C alias pool used by i2c-atr driver.
         // Address called out in the pool is used as Camera Alias Address.
         Package () { "i2c-alias-pool",  Package() { CAM_ALIAS } },
+        /*
+         * External GMSL frame sync control, consumed by max96717.c.
+         * Disabled by default; define EXTERNAL_FRAME_SYNC (1) by the
+         * caller to override.
+         */
+#ifdef EXTERNAL_FRAME_SYNC
+        Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
+#else
+        Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
+#endif
         },
 #endif
         ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
@@ -114,18 +130,47 @@ Name (_DSD, Package ()  // _DSD: Device-Specific Data
         Package () { "mipi-img-port-2", "PRT2" }, // Connected to DESx PRTx (used by SERx CSI2Bus LocalPort)
     #ifdef DESCH_SER_X_VC
         Package () { "Pipe-X", "PIPX" }, // Pipe X
-        #endif
+    #endif
     #ifdef DESCH_SER_Y_VC
         Package () { "Pipe-Y", "PIPY" }, // Pipe Y
-        #endif
+    #endif
     #ifdef DESCH_SER_Z_VC
         Package () { "Pipe-Z", "PIPZ" }, // Pipe Z
-        #endif
+    #endif
     #ifdef DESCH_SER_U_VC
         Package () { "Pipe-U", "PIPU" }, // Pipe U
-        #endif
+    #endif
+#ifdef EXTERNAL_FRAME_SYNC
+#ifdef DESCH_SER_FSYNC_RX_ID
+#ifdef DESCH_SER_FSIN_GPIO
+        Package () { "fsync", "MFP" }, // fsync pin configuration
+#endif
+#endif
+#endif
         }
 })
+#ifdef EXTERNAL_FRAME_SYNC
+#ifdef DESCH_SER_FSYNC_RX_ID
+#ifdef DESCH_SER_FSIN_GPIO
+Name (MFP, Package()
+{
+    ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
+    Package ()
+    {
+        #ifdef DESCH_SER_FSYNC_RX_ID
+        Package () { "maxim,rx-id", DESCH_SER_FSYNC_RX_ID }, // GMSL GPIO ID sent by the DES
+        #endif
+        #ifdef DESCH_SER_FSIN_GPIO
+        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_FSIN_GPIO },
+        #endif
+        #ifdef DESCH_SER_FSIN_GPIO_2
+        Package () { "gmsl-frame-sync-gpio-pin-2", DESCH_SER_FSIN_GPIO_2 },
+        #endif
+    },
+})
+#endif
+#endif
+#endif
 
 Name (PRT0, Package()
 {
