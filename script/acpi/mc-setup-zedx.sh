@@ -915,6 +915,8 @@ for k in "${!CFG_LINKS[@]}"; do
                 ;;
             ar0234)
                 out media-ctl -V "\"ar0234 ${cam}\":0/${p} [fmt:${fmt}/${size} field:none]"
+		# set frame-sync by default
+                echo 1 | tee /sys/module/ar0234/parameters/frame_sync
                 initPsys=1
                 symlink=1
                 ;;

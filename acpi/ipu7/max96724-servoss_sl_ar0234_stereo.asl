@@ -64,6 +64,7 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
         {
             #define EXTERNAL_FRAME_SYNC 1
             #define EXTERNAL_FRAME_FREQ_HZ 30
+            #define DESCH_SER_FSYNC_RX_ID 9
 
             // DES-level defines for DES0
             #define DES_PHY_TYPE 0
@@ -96,7 +97,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_RESET_GPIO_PIN2   8
             #define DESCH_SER_FSIN_GPIO 9
             #define DESCH_SER_FSIN_GPIO_2 10
-            #define DESCH_SER_FSYNC_RX_ID 9
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -121,9 +121,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
 #endif
 #ifdef DESCH_SER_FSIN_GPIO_2
             #undef DESCH_SER_FSIN_GPIO_2
-#endif
-#ifdef DESCH_SER_FSYNC_RX_ID
-            #undef DESCH_SER_FSYNC_RX_ID
 #endif
             #undef CAM_ALIAS
             #undef CAM_LANES
@@ -167,9 +164,6 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
 #ifdef DESCH_SER_FSIN_GPIO_2
             #undef DESCH_SER_FSIN_GPIO_2
 #endif
-#ifdef DESCH_SER_FSYNC_RX_ID
-            #undef DESCH_SER_FSYNC_RX_ID
-#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -185,6 +179,15 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DES_PATH
             #undef DES_REF
             #undef DES_PIPE_STR_AUTOSELECT
+#ifdef EXTERNAL_FRAME_SYNC
+            #undef EXTERNAL_FRAME_SYNC
+#endif
+#ifdef EXTERNAL_FRAME_FREQ_HZ
+            #undef EXTERNAL_FRAME_FREQ_HZ
+#endif
+#ifdef DESCH_SER_FSYNC_RX_ID
+            #undef DESCH_SER_FSYNC_RX_ID
+#endif
             #undef DES_I2C_ALIAS_POOL
         }
     }
