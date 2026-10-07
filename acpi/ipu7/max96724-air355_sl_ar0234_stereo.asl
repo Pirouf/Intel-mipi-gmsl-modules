@@ -50,7 +50,11 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
     {
         Device (DES0)
         {
-            // DES-level defines for DES0
+            #define EXTERNAL_FRAME_SYNC 1
+            #define EXTERNAL_FRAME_FREQ_HZ 30
+            #define DESCH_SER_FSYNC_RX_ID 9
+
+	    // DES-level defines for DES0
             #define DES_PHY_TYPE 1
             #define DES_I2C_ADDR 0x0027
             #define DES_LANES 4
@@ -75,6 +79,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER1
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -92,6 +98,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -106,6 +118,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER2
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -123,6 +137,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -138,11 +158,18 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DES_PATH
             #undef DES_REF
             #undef DES_PIPE_STR_AUTOSELECT
+#ifdef DESCH_SER_FSYNC_RX_ID
+            #undef DESCH_SER_FSYNC_RX_ID
+#endif
             #undef DES_I2C_ALIAS_POOL
         }
 
         Device (DES1)
         {
+            #define EXTERNAL_FRAME_SYNC 1
+            #define EXTERNAL_FRAME_FREQ_HZ 30
+            #define DESCH_SER_FSYNC_RX_ID 9
+
             // PHY0 data on port C, with the PHY1 clock driving two D-PHY lanes
             #define DES_PHY_TYPE 1
             #define DES_I2C_ADDR 0x0027
@@ -184,6 +211,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -215,6 +248,12 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DESCH_RESET_GPIO_PIN2
             #undef DESCH_SER_X_VC
             #undef DESCH_SER_Y_VC
+#ifdef DESCH_SER_FSIN_GPIO
+            #undef DESCH_SER_FSIN_GPIO
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+            #undef DESCH_SER_FSIN_GPIO_2
+#endif
             #undef CAM_ALIAS
             #undef CAM_LANES
 
@@ -229,6 +268,9 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #undef DES_PATH
             #undef DES_REF
             #undef DES_PIPE_STR_AUTOSELECT
+#ifdef DESCH_SER_FSYNC_RX_ID
+            #undef DESCH_SER_FSYNC_RX_ID
+#endif
             #undef DES_I2C_ALIAS_POOL
         }
     }
