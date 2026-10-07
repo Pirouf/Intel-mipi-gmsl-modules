@@ -130,9 +130,10 @@ override_dh_auto_test:
 override_dh_auto_install:
 override_dh_auto_clean:
 
-override_dh_dkms: debian/dkms.conf debian/intel-mipi-gmsl-dkms.postinst
+override_dh_dkms: debian/dkms.conf debian/intel-mipi-gmsl-dkms.postinst debian/intel-mipi-gmsl-dkms.postrm
 	dh_dkms -V $(DEB_VERSION_UPSTREAM_REVISION) -- debian/dkms.conf
 	cp -a debian/intel-mipi-gmsl-dkms.postinst debian/intel-mipi-gmsl-dkms.postinst.debhelper
+	cp -a debian/intel-mipi-gmsl-dkms.postrm debian/intel-mipi-gmsl-dkms.postrm.debhelper
 
 override_dh_installdebconf-arch: debian/intel-mipi-gmsl-dkms.config debian/intel-mipi-gmsl-dkms.templates
 	dh_installdebconf -a

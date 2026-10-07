@@ -7,17 +7,6 @@ DKMS_PACKAGE_NAME=@DKMS_PACKAGE_NAME@
 
 set -e
 
-. /usr/share/debconf/confmodule
-
-db_get ${DKMS_PACKAGE_NAME}/max9x
-MAX9X=${RET}
-db_get ${DKMS_PACKAGE_NAME}/ipu
-IPU=${RET}
-db_get ${DKMS_PACKAGE_NAME}/board
-BOARD=${RET}
-db_get ${DKMS_PACKAGE_NAME}/sensor
-SENSOR=${RET}
-
 # summary of how this script can be called:
 #        * <postrm> `remove'
 #        * <postrm> `purge'
@@ -32,42 +21,59 @@ SENSOR=${RET}
 # the debian-policy package
 
 case "$1" in
-	remove|purge)
-		if [ -e /etc/default/grub.d/ssdt.cfg ]; then
+    purge)
+	if [ "$1" = purge ] && [ -e /usr/share/debconf/confmodule ]; then
+	    . /usr/share/debconf/confmodule
 
-			echo "clear /etc/default/grub.d/ssdt.cfg" >&2
-			rm -f /etc/default/grub.d/ssdt.cfg
-			if command -v update-grub > /dev/null && [ -d /boot/grub ]; then
-			   update-grub || :
-			fi
-		fi
-		if [ "$MAX9X" = "maxim-serdes" ]; then
-			echo "postrm ${MAX9X} ACPI SSDT-overlay ${IPU}/${BOARD}_${SENSOR}.aml" >&2
-			if [ -e /boot/${IPU}_${BOARD}_${SENSOR}_ssdt.img ]; then
-				rm -rf /boot/${IPU}_${BOARD}_${SENSOR}_ssdt.img || :
-			fi
-		fi
-		# avoid potential conflict with manually compiled dkms build
-		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
-		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
-		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
-		fi
-		# avoid leftover blacklist
-		if [ -f /etc/modprobe.d/blacklist-intel-ipu.conf ]; then
-		    rm -f /etc/modprobe.d/blacklist-intel-ipu.conf
-		fi
+	    db_purge
+	fi
 	;;
-	upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-		# avoid potential conflict with manually compiled dkms build
-		if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
-		    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
-		    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
+    remove)
+	if [ -e /usr/share/debconf/confmodule ]; then
+
+	    . /usr/share/debconf/confmodule
+
+	    db_get ${DKMS_PACKAGE_NAME}/max9x
+	    MAX9X=${RET}
+	    db_get ${DKMS_PACKAGE_NAME}/ipu
+	    IPU=${RET}
+	    db_get ${DKMS_PACKAGE_NAME}/board
+	    BOARD=${RET}
+	    db_get ${DKMS_PACKAGE_NAME}/sensor
+	    SENSOR=${RET}
+
+	    if [ -e /etc/default/grub.d/ssdt.cfg ]; then
+		echo "clear /etc/default/grub.d/ssdt.cfg" >&2
+		rm -f /etc/default/grub.d/ssdt.cfg
+		if command -v update-grub > /dev/null && [ -d /boot/grub ]; then
+		    if [ -e /boot/${IPU}_${BOARD}_${SENSOR}_ssdt.img ]; then
+			echo "clear ACPI SSDT-overlay ${IPU}/${BOARD}_${SENSOR}.aml" >&2
+			rm -f /boot/${IPU}_${BOARD}_${SENSOR}_ssdt.img || :
+		    fi
+		    update-grub || :
 		fi
+	    fi
+
+	fi
+	# avoid potential conflict with manually compiled dkms build
+	if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
+	    echo "clear /var/lib/dkms/$DKMS_PACKAGE_NAME" >&2
+	    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
+	    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
+	fi
+	;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+	# avoid potential conflict with manually compiled dkms build
+	if [ -d /var/lib/dkms/$DKMS_PACKAGE_NAME ]; then
+	    echo "clear /var/lib/dkms/$DKMS_PACKAGE_NAME" >&2
+	    rm -rf /var/lib/dkms/$DKMS_PACKAGE_NAME
+	    rm -rf /usr/src/$DKMS_PACKAGE_NAME-*
+	fi
 	;;
 
-	*)
-		echo "postrm called with unknown argument \`$1'" >&2
-        	exit 1
+    *)
+	echo "postrm called with unknown argument \`$1'" >&2
+	exit 1
 	;;
 esac
 

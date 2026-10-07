@@ -110,7 +110,9 @@ case "$1" in
 			export SKIP_MAXIM_SERDES=0
 
 			# remove failsafe: SSDT-overlay are structural checked, no risk
+			sed -i "s/^\(blacklist intel_ipu6$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 			sed -i "s/^\(blacklist intel_ipu6_isys$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+			sed -i "s/^\(blacklist intel_ipu7$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 			sed -i "s/^\(blacklist intel_ipu7_isys$\)/# \1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 
 			if [ -e $AML ]; then
@@ -146,7 +148,9 @@ case "$1" in
 
 			# apply failsafe : mitigate risk of kernel boot failure when:
 			# - user-defined UEFI builtin Camera PDATA are incorrect
+			sed -i "s/^# \(blacklist intel_ipu6\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 			sed -i "s/^# \(blacklist intel_ipu6_isys$\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
+			sed -i "s/^# \(blacklist intel_ipu7$\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 			sed -i "s/^# \(blacklist intel_ipu7_isys$\)/\1/g" /etc/modprobe.d/blacklist-intel-ipu.conf
 
 			if [ -e /etc/default/grub.d/ssdt.cfg ]; then
