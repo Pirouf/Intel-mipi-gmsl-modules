@@ -195,6 +195,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER1
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x66, 0x67
@@ -232,6 +234,8 @@ DefinitionBlock ("", "SSDT", 2, "", "IMG_IPU", 0x20260922)
             #define DESCH_SER_GPIOREF ^^^SER2
             #define DESCH_RESET_GPIO_PIN    7
             #define DESCH_RESET_GPIO_PIN2   8
+            #define DESCH_SER_FSIN_GPIO 9
+            #define DESCH_SER_FSIN_GPIO_2 10
             #define DESCH_SER_X_VC Package () { 1 }
             #define DESCH_SER_Y_VC Package () { 0 }
             #define CAM_ALIAS 0x68, 0x6a
