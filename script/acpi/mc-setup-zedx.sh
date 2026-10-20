@@ -752,16 +752,36 @@ mapfile -t _sorted_k < <(
         printf '%d %d %d %d\n' "${CFG_DES[$k]}" "${CFG_LINKS[$k]}" "${CFG_PHYS[$k]}" "$k"
     done | sort -k1,1n -k2,2n -k3,3n
 )
+# The camera HAL config pins each camera to a capture node/VC by its ACPI
+# position, so give every camera *declared* under a DES (populated or not) a
+# fixed CSI2 base in ACPI path order; unpopulated channels keep their slots.
+declare -A ACPI_CSI_BASE=()
+for ((d = 0; d < NUM_DES; d++)); do
+    n=0
+    while read -r cp model; do
+        ACPI_CSI_BASE[$cp]=$n
+        ns=(${MODEL_DEFAULT_STREAMS[$model]})
+        n=$((n + ${#ns[@]}))
+    done < <(for dir in /sys/bus/acpi/devices/*; do
+                 cp=$(cat "$dir/path" 2>/dev/null) || continue
+                 [[ $cp == "${DES_PATH[$d]}".* ]] || continue
+                 hid=$(acpi_hid "$dir")
+                 [ -n "$hid" ] || continue
+                 model=${SENSOR_MODEL[$hid]:-}
+                 [ -n "$model" ] && echo "$cp $model"
+             done | sort)
+done
 for row in "${_sorted_k[@]}"; do
     read -r d l p k <<<"$row"
     lk="${d}_${l}"
     ckey="${lk}_${p}"
     SRC_BASE[$ckey]=${_src_ctr[$lk]:-0}
-    CSI2_BASE[$k]=${_csi_ctr[$d]:-0}
+    cp=${CAM_PATH[$ckey]:-none}
+    CSI2_BASE[$k]=${ACPI_CSI_BASE[$cp]:-${_csi_ctr[$d]:-0}}
     nsel=0
     for s in ${CFG_STREAMS[$k]}; do nsel=$((nsel + 1)); done
     _src_ctr[$lk]=$(( ${_src_ctr[$lk]:-0} + nsel ))
-    _csi_ctr[$d]=$(( ${_csi_ctr[$d]:-0} + nsel ))
+    _csi_ctr[$d]=$(( ${CSI2_BASE[$k]} + nsel ))
 done
 
 echo "Setting Up:"

@@ -473,7 +473,7 @@ static int max_des_set_pipe_vc_remaps(struct max_des_priv *priv,
 
 static int max_des_map_src_dst_vc_id(struct max_des_remap_context *context,
 				     unsigned int pipe_id, unsigned int phy_id,
-				     unsigned int src_vc_id, bool keep_vc)
+				     unsigned int src_vc_id, unsigned int pref_vc_id)
 {
 	unsigned int vc_id;
 
@@ -483,8 +483,9 @@ static int max_des_map_src_dst_vc_id(struct max_des_remap_context *context,
 	if (context->vc_ids_masks[pipe_id][phy_id] & BIT(src_vc_id))
 		return 0;
 
-	if (keep_vc && !(context->dst_vc_ids_masks[phy_id] & BIT(src_vc_id)))
-		vc_id = src_vc_id;
+	if (pref_vc_id < MAX_SERDES_VC_ID_NUM &&
+	    !(context->dst_vc_ids_masks[phy_id] & BIT(pref_vc_id)))
+		vc_id = pref_vc_id;
 	else
 		vc_id = ffz(context->dst_vc_ids_masks[phy_id]);
 
@@ -680,7 +681,10 @@ static int max_des_populate_remap_context(struct max_des_priv *priv,
 		keep_vc = max_des_should_keep_vc(priv, &hw, modes);
 
 		ret = max_des_map_src_dst_vc_id(context, hw.pipe->index, hw.phy->index,
-						hw.entry.bus.csi2.vc, keep_vc);
+						hw.entry.bus.csi2.vc,
+						/* else output stream N on VC N */
+						keep_vc ? hw.entry.bus.csi2.vc :
+							  route->source_stream);
 		if (ret)
 			return ret;
 	}
