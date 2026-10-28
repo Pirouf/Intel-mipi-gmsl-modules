@@ -1,6 +1,6 @@
 PACKAGE_NAME="intel-mipi-gmsl-dkms"
 PACKAGE_VERSION="@DKMS_PACKAGE_VERSION@"
-BUILD_EXCLUSIVE_KERNEL="^(7\.([0])\.)|^(6\.(1[278])\.)|^6\.(1[278])rt-intel|^6\.(1[278])-intel"
+BUILD_EXCLUSIVE_KERNEL="^(7\.([0])\.)|^(6\.(1[278])\.)|^6\.(1[278])rt-intel|^6\.(1[278])-intel|^7\.(0)rt-intel|^7\.(0)-intel"
 VERSION_SUFFIX="${PACKAGE_VERSION}"
 
 KBASE=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build
