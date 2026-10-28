@@ -98,7 +98,11 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
          * I2C alias pool used by i2c-atr driver.
          * Addresses called out in the pool is used for Serializer for each link.
          */
-        Package () { "i2c-alias-pool",  Package () { 0x44, 0x45, 0x46, 0x47 } },
+#ifdef DES_I2C_ALIAS_POOL
+        Package () { "i2c-alias-pool", DES_I2C_ALIAS_POOL },
+#else
+        Package () { "i2c-alias-pool", Package () { 0x44, 0x45, 0x46, 0x47 } },
+#endif
 
         /*
          * MAX96724 specific handling for 3D sensor. Refer to max96724.c for implementation details.
@@ -116,6 +120,14 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
          */
         #ifdef EXTERNAL_FRAME_SYNC
         Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC }, // Zero to disable, One to enable
+        #ifdef EXTERNAL_FRAME_FREQ_HZ
+        Package () { "gmsl-frame-sync-internal-hz", EXTERNAL_FRAME_FREQ_HZ }, // Set internal Trigger rate
+        #endif
+        #ifdef DESCH_SER_FSYNC_RX_ID
+        Package () { "gmsl-frame-sync-tx-id", DESCH_SER_FSYNC_RX_ID }, // Set RX_ID = TX_ID FSYNC
+        #else
+        Package () { "gmsl-frame-sync-tx-id", 10 }, // Set TX_ID=10
+        #endif
         #else
         Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
         #endif
@@ -193,7 +205,11 @@ Name (PRT4, Package()
     ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
     Package ()
     {
+        #ifdef DES_CLOCK_LANE
+        Package () { "mipi-img-clock-lane", DES_CLOCK_LANE },
+        #else
         Package () { "mipi-img-clock-lane", 0 },
+        #endif
         #if DES_LANES == 4
         Package () { "mipi-img-data-lanes", Package() { 1, 2, 3, 4 } },       // 4 lanes for DPHY on Intel MIPI CRD
         #else
