@@ -46,7 +46,7 @@ The script can be used for MIPI and GMSL sensors. There are default streams for 
 | Device | Supported Models |
 | ---    | --- |
 | Deserializer | MAX9296A DPHY,<br> MAX96724 CPHY,<br> MAX96724 DPHY |
-| Serializer | MAX9295A |
+| Serializer | MAX9295A,<br> MAX9295D (ZED X, 2 PHYs) |
 | 2D RAW sensor | AR0234 |
 | 2D YUV sensor | ISX031 |
 | 3D YUV sensor | D457 |
@@ -129,6 +129,25 @@ Examples below will use MAX96724 as example.
     - Link 0 - 2D sensor (model A)
     - Link 1 - 2D sensor (model B)
     - Link 2 - 3D sensor (model C)
+
+**ZED X setup (multi-PHY serializer)**
+
+A ZED X carries two AR0234 sensors behind one MAX9295D (`INTC1140`), i.e. two
+cameras (PHY 0 and PHY 1) and two deserializer pipes per link. Hence at most
+two ZED X fit on one MAX96724.
+
+- DES{N}
+    - Link 1 - ZED X (AR0234 PHY 0 + AR0234 PHY 1)
+    - Link 2 - ZED X (AR0234 PHY 0 + AR0234 PHY 1)
+
+`link=N` configures both sensors of a ZED X; add `phy=P` to select one. Each
+ZED X sensor gets a fixed capture node and VC: its slot among all cameras
+declared under the DES in ACPI path order (matching the camera HAL
+`ar0234stereo.json`). When a ZED X is configured, mc-setup.sh also writes
+`ZEDX_FRAME_SYNC` (default `1`; empty to skip) to
+`/sys/module/ar0234/parameters/frame_sync`, prepares PSYS for the camera HAL and
+creates `/dev/video-ar0234-<a..h>-<csi2>` links (`a..d` = link 0..3 PHY 0,
+`e..h` = link 0..3 PHY 1).
 
 #### Sample Commands
 
@@ -262,6 +281,12 @@ DES1, \
 link 2
 
     ../../script/acpi/mc-setup.sh des=0,link=2 des=1,link=2
+
+> command 4 (ZED X): \
+DES0, \
+link 1, PHY 1 only (one sensor of the stereo pair)
+
+    ../../script/acpi/mc-setup.sh des=0,link=1,phy=1
 
 ### Output
 
