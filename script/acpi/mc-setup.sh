@@ -156,7 +156,7 @@ declare -A MODEL_DEFAULT_STREAMS=(
     [d4xx]="depth rgb"
 )
 declare -A MODEL_OPTIONAL_DEFAULT_STREAMS=(
-    [d4xx]="ir"
+    [d4xx]="ir imu"
 )
 
 fixed_stream_for_model() {
@@ -750,8 +750,8 @@ print_topology() {
 # TOKEN is only applicable for multi-stream sensors as specified in MODEL_STREAMS.
 # Other 2D sensors do not need stream=<csv>, they default to `single`.
 #
-# D4xx defaults to depth,rgb when no stream is specified, plus ir when the
-# deserializer has a spare source_stream and the ir capture node is free.
+# D4xx defaults to depth,rgb when no stream is specified, plus ir and then imu
+# while the deserializer has a spare source_stream and the capture node is free.
 #
 # When des= is omitted, des=0 is assumed (matches the legacy single-DES CLI).
 #
