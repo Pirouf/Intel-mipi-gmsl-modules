@@ -23,7 +23,13 @@
 #     \_SB.PCxx.DESn                             -- deserializer
 #       \_SB.PCxx.DESn.CHmm                      -- channel (no HID)
 #         \_SB.PCxx.DESn.CHmm.SERk                -- serializer
-#           \_SB.PCxx.DESn.CHmm.SERk.CAMk          -- camera (sensor)
+#           \_SB.PCxx.DESn.CHmm.SERk.CAMk          -- camera (single-PHY SER)
+#
+# Multi-PHY serializers (e.g. MAX9295D on a ZED X, 2 PHYs) instead carry one
+# camera per sub-channel, one level deeper:
+#         \_SB.PCxx.DESn.CHmm.SERk                -- serializer
+#           \_SB.PCxx.DESn.CHmm.SERk.CHpp         -- sub-channel / PHY p (no HID)
+#             \_SB.PCxx.DESn.CHmm.SERk.CHpp.CAMp  -- camera (sensor)
 #
 # Every ACPI device exposes:
 #   /sys/bus/acpi/devices/<HID>:<UID>/path        -- ACPI namespace path
@@ -33,9 +39,11 @@
 # Known sensor / SerDes HIDs:
 #   INTC10CD = D4XX camera   (entity prefixes: "DS5 mux", "D4XX depth/rgb/ir/imu")
 #   INTC113C = ISX031 camera (entity prefix:   "isx031")
+#   INTC10C0 = AR0234 camera (entity prefix:   "ar0234")
 #   OVTI13B1 = OV13B10 camera (entity prefix: "ov13b10")
 #   INTC1138 = MAX9295 serializer               (entity prefix: "max96717")
 #   INTC1141 = MAX96717 serializer              (entity prefix: "max96717")
+#   INTC1140 = MAX9295D serializer (ZED X)      (2 PHYs, entity prefix: "max96717")
 #   INTC1137 = MAX9296A deserializer            (entity prefix: "max9296a")
 #   INTC1139 = MAX96724 deserializer            (entity prefix: "max96724")
 
@@ -54,6 +62,11 @@
 #
 # IPU7 CSI2 RX source-pad cap:
 #   IPU_CSI2_SRC_PADS        Default: 16 (use 8 without the D4XX IPU7 patch).
+#
+# ZED X (AR0234 behind a multi-PHY serializer):
+#   ZEDX_FRAME_SYNC          Written to /sys/module/ar0234/parameters/frame_sync
+#                            when a ZED X camera is configured. Default: 1.
+#                            Set empty to leave the module parameter untouched.
 #
 # Example:
 #   DES_HID=INTC1139 ./mc-setup.sh \
@@ -104,7 +117,16 @@ declare -A MIPI_SENSOR_HID=(
 # ---- Serializer / Deserializer HID -> v4l entity prefix ---------------------
 declare -A SER_PREFIX=(
     [INTC1138]="max96717"
+    [INTC1140]="max96717"
     [INTC1141]="max96717"
+)
+
+# Number of camera-facing PHYs (sink pads) of a serializer model; its source
+# pad number equals this count. Serializers with more than one PHY carry one
+# camera per ACPI sub-channel (SERk.CHpp.CAMp).
+declare -A SER_NUM_PHYS=(
+    [INTC1138]=1
+    [INTC1140]=2
 )
 declare -A DES_PREFIX=(
     [INTC1137]="max9296a"
@@ -298,6 +320,23 @@ mc_v() {
     return "$rc"
 }
 
+# Print the serializer sink pad that a camera's immutable media link lands on.
+# A board can wire camera order differently from the ACPI sub-channel order,
+# so the live graph, not the ACPI name, decides the PHY / sink pad.
+media_ser_sink_pad() {
+    local ser_entity=$1 cam_entity=$2
+    media-ctl -p 2>/dev/null | awk -v cam="$cam_entity" -v ser="$ser_entity" '
+        /^- entity / { in_cam = index($0, ": " cam " (") ? 1 : 0; next }
+        in_cam && index($0, "-> \"" ser "\":") {
+            sub(/^.*-> "[^"]+":/, "")
+            sub(/ .*/, "")
+            print
+            found = 1
+            exit
+        }
+        END { exit !found }'
+}
+
 # -------- topology discovery --------------------------------------------------
 
 # Per-DES MAX_LINKS (indexed by DES index 'd'), populated during discovery
@@ -334,13 +373,61 @@ NUM_DES=0
 PREFIX=$(v4l2-ctl --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
 VID_DEV_OFFSET=$(media-ctl -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
 
-# Per-link associative arrays keyed by "d_l" (deserializer index, link index):
-declare -A SER_PATH=() CAM_PATH=()
-declare -A SER_BA=()  CAM_BA=()
+# Per-link associative arrays keyed by "d_l" (deserializer index, link index).
+# The serializer is shared by every PHY on a link, so it is keyed per link.
+declare -A SER_PATH=() SER_BA=() SER_PFX=() SER_HID=() SER_NPHYS=()
+# Per-camera associative arrays keyed by "d_l_p" (DES idx, link idx, PHY idx);
+# single-PHY serializers always use p=0.
+declare -A CAM_PATH=() CAM_BA=()
 declare -A CAM_HID=() CAM_MODEL=() CAM_PREFIX=()
-declare -A SER_PFX=()
+# CAM_SER_PAD: serializer sink pad the camera is linked to.
+# CAM_SID: sensor source stream id (only set when it is not STREAM_NODE[s]).
+declare -A CAM_SER_PAD=() CAM_SID=()
+# PHYS_OF[d_l] holds a space-separated list of valid PHY indices on a link.
+declare -A PHYS_OF=()
 # LINKS_OF[d] holds a space-separated list of valid link indices on DES d.
 declare -A LINKS_OF=()
+
+# Register camera $3 (ACPI path) as PHY $4 of link key $2 on DES $1.
+# Echo nothing; return 1 (after a warning) when the camera is unusable.
+discover_one_cam() {
+    local d=$1 key=$2 cam_path=$3 p=$4 ser_hid=$5
+    local l=${key#*_} ckey="${key}_${p}" cam_dir cam_hid cam_name cam_pfx cam_ba ser_pad
+    local where="DES${d} link ${l}"
+    (( SER_NUM_PHYS[$ser_hid] > 1 )) && where+=" PHY ${p}"
+
+    read -r _ cam_dir < <(acpi_find_by_path "$cam_path") || {
+        echo "WARN: ${where}: camera ACPI dev for '$cam_path' not present in sysfs; skipping" >&2
+        return 1
+    }
+    cam_hid=$(acpi_hid "$cam_dir")
+    if [ -z "${SENSOR_MODEL[$cam_hid]:-}" ]; then
+        cam_name=$(cat "$cam_dir"/physical_node*/video4linux/v4l-subdev*/name 2>/dev/null | head -1)
+        echo "WARN: ${where}: unsupported camera HID '$cam_hid' at $cam_path${cam_name:+ (subdev: $cam_name)}; skipping" >&2
+        echo "      add an entry to SENSOR_MODEL[${cam_hid}] / SENSOR_PREFIX[${cam_hid}] to enable it" >&2
+        return 1
+    fi
+    cam_pfx=${SENSOR_PREFIX[$cam_hid]}
+    cam_ba=$(acpi_busaddr "$cam_dir" "$cam_pfx") || {
+        echo "WARN: ${where}: camera at $cam_path has no v4l-subdev (driver loaded?); skipping" >&2
+        return 1
+    }
+    ser_pad=0
+    if (( SER_NUM_PHYS[$ser_hid] > 1 )); then
+        ser_pad=$(media_ser_sink_pad "${SER_PFX[$key]} ${SER_BA[$key]}" "${cam_pfx} ${cam_ba}") || {
+            echo "WARN: ${where}: no media link from '${cam_pfx} ${cam_ba}' to '${SER_PFX[$key]} ${SER_BA[$key]}'; skipping" >&2
+            return 1
+        }
+    fi
+
+    CAM_PATH[$ckey]=$cam_path
+    CAM_PREFIX[$ckey]=$cam_pfx
+    CAM_BA[$ckey]=$cam_ba
+    CAM_HID[$ckey]=$cam_hid
+    CAM_MODEL[$ckey]=${SENSOR_MODEL[$cam_hid]}
+    CAM_SER_PAD[$ckey]=$ser_pad
+    return 0
+}
 
 discover_one_des() {
     local d=$1 des_dir=$2
@@ -361,7 +448,7 @@ discover_one_des() {
     # SSDT/_CRS published in the CSI2Bus resource).
     DES_MAX_LINKS[$d]=${MAX_LINKS_BY_PREFIX[$des_prefix]:-4}
 
-    local i ch ser_path ser_dir ser_hid cam_path cam_dir cam_hid ch_name key
+    local i ch ser_path ser_dir ser_hid cam_path ch_name key subch p phys
     local found=0
     local links=""
     while IFS= read -r ch; do
@@ -394,44 +481,42 @@ discover_one_des() {
             echo "WARN: DES${d} link ${i}: unsupported serializer HID '$ser_hid' at $ser_path; skipping" >&2
             continue
         }
-
-        cam_path=$(acpi_children_of "$ser_path" | head -1)
-        [ -z "$cam_path" ] && {
-            echo "WARN: DES${d} link ${i}: serializer at $ser_path has no camera child; skipping" >&2
-            continue
-        }
-        read -r _ cam_dir < <(acpi_find_by_path "$cam_path") || {
-            echo "WARN: DES${d} link ${i}: camera ACPI dev for '$cam_path' not present in sysfs; skipping" >&2
-            continue
-        }
-        cam_hid=$(acpi_hid "$cam_dir")
-        if [ -z "${SENSOR_MODEL[$cam_hid]:-}" ]; then
-            local cam_name=""
-            cam_name=$(cat "$cam_dir"/physical_node*/video4linux/v4l-subdev*/name 2>/dev/null | head -1)
-            echo "WARN: DES${d} link ${i}: unsupported camera HID '$cam_hid' at $cam_path${cam_name:+ (subdev: $cam_name)}; skipping" >&2
-            echo "      add an entry to SENSOR_MODEL[${cam_hid}] / SENSOR_PREFIX[${cam_hid}] to enable it" >&2
-            continue
-        fi
-
-        SER_PATH[$key]=$ser_path
-        CAM_PATH[$key]=$cam_path
         SER_PFX[$key]=${SER_PREFIX[$ser_hid]}
         SER_BA[$key]=$(acpi_busaddr "$ser_dir" "${SER_PFX[$key]}") || {
             echo "WARN: DES${d} link ${i}: serializer at $ser_path has no v4l-subdev (driver loaded?); skipping" >&2
-            unset 'SER_PATH[$key]' 'CAM_PATH[$key]' \
-                  'SER_PFX[$key]' 'SER_BA[$key]'
+            unset 'SER_PFX[$key]' 'SER_BA[$key]'
             continue
         }
-        CAM_PREFIX[$key]=${SENSOR_PREFIX[$cam_hid]}
-        CAM_BA[$key]=$(acpi_busaddr "$cam_dir" "${CAM_PREFIX[$key]}") || {
-            echo "WARN: DES${d} link ${i}: camera at $cam_path has no v4l-subdev (driver loaded?); skipping" >&2
-            unset 'SER_PATH[$key]' 'CAM_PATH[$key]' \
-                  'SER_PFX[$key]' 'SER_BA[$key]' \
-                  'CAM_PREFIX[$key]'
+
+        # A single-PHY serializer carries its camera as a direct ACPI child
+        # (PHY 0); a multi-PHY one carries one camera per CHpp sub-channel.
+        phys=""
+        if (( ${SER_NUM_PHYS[$ser_hid]:-1} > 1 )); then
+            while IFS= read -r subch; do
+                [ -z "$subch" ] && continue
+                [[ ${subch##*.} =~ ^CH([0-9]+)$ ]] || continue
+                p=$((10#${BASH_REMATCH[1]}))
+                cam_path=$(acpi_children_of "$subch" | head -1)
+                [ -n "$cam_path" ] || continue
+                discover_one_cam "$d" "$key" "$cam_path" "$p" "$ser_hid" \
+                    && phys+="${phys:+ }${p}"
+            done < <(acpi_children_of "$ser_path")
+        else
+            cam_path=$(acpi_children_of "$ser_path" | head -1)
+            if [ -n "$cam_path" ]; then
+                discover_one_cam "$d" "$key" "$cam_path" 0 "$ser_hid" && phys=0
+            fi
+        fi
+        [ -n "$phys" ] || {
+            echo "WARN: DES${d} link ${i}: serializer at $ser_path has no usable camera; skipping" >&2
+            unset 'SER_PFX[$key]' 'SER_BA[$key]'
             continue
         }
-        CAM_HID[$key]=$cam_hid
-        CAM_MODEL[$key]=${SENSOR_MODEL[$cam_hid]}
+
+        SER_PATH[$key]=$ser_path
+        SER_HID[$key]=$ser_hid
+        SER_NPHYS[$key]=${SER_NUM_PHYS[$ser_hid]:-1}
+        PHYS_OF[$key]=$phys
         links+="${links:+ }${i}"
         found=$((found + 1))
     done < <(acpi_children_of "$des_path")
@@ -605,7 +690,7 @@ detect_gmsl_csi2() {
 
 print_topology() {
     echo "Discovered topology:"
-    local d l key vid_node
+    local d l p key ckey vid_node
     for ((d = 0; d < NUM_DES; d++)); do
 	vid_node=$(( CAPTURE_BASE[$d] + VID_DEV_OFFSET ))
         printf "  DES%d  %-34s %s %s -> %s (capture base /dev/video%s)\n" \
@@ -615,9 +700,19 @@ print_topology() {
             key="${d}_${l}"
             printf "    SER%d  %-34s %s %s\n" \
                 "$l" "${SER_PATH[$key]}" "${SER_PFX[$key]}" "${SER_BA[$key]}"
-            printf "    CAM%d  %-34s %s %s  (model=%s, hid=%s)\n" \
-                "$l" "${CAM_PATH[$key]}" "${CAM_PREFIX[$key]}" "${CAM_BA[$key]}" \
-                "${CAM_MODEL[$key]}" "${CAM_HID[$key]}"
+            for p in ${PHYS_OF[$key]}; do
+                ckey="${key}_${p}"
+                if (( SER_NPHYS[$key] > 1 )); then
+                    printf "    CAM%d.%d %-33s %s %s  (model=%s, hid=%s, ser pad %s)\n" \
+                        "$l" "$p" "${CAM_PATH[$ckey]}" "${CAM_PREFIX[$ckey]}" \
+                        "${CAM_BA[$ckey]}" "${CAM_MODEL[$ckey]}" "${CAM_HID[$ckey]}" \
+                        "${CAM_SER_PAD[$ckey]}"
+                else
+                    printf "    CAM%d  %-34s %s %s  (model=%s, hid=%s)\n" \
+                        "$l" "${CAM_PATH[$ckey]}" "${CAM_PREFIX[$ckey]}" "${CAM_BA[$ckey]}" \
+                        "${CAM_MODEL[$ckey]}" "${CAM_HID[$ckey]}"
+                fi
+            done
         done
     done
     for ((i = 0; i < NUM_MIPI; i++)); do
@@ -651,6 +746,10 @@ print_topology() {
 #
 # When des= is omitted, des=0 is assumed (matches the legacy single-DES CLI).
 #
+# Multi-PHY serializers (ZED X) carry two cameras on one link. link=N applies
+# to every camera on the link; add phy=P to select one of them:
+#     mc-setup.sh des=D,link=N[,phy=P][,res=WxH][,format=MBUS_CODE][,fps=FPS]
+#
 # Capture-node layout (per DES):
 #     csi2_pad = STREAM_CAPTURE_BASE[s] +
 #                 ((l + STREAM_LINK_ROTATION[s]) % CSI2_NODE_BANK_SIZE)
@@ -667,6 +766,14 @@ print_topology() {
 # max96724 / max_des bound the per-pipe stream-id field at 2 bits
 # (MAX_SERDES_STREAMS_NUM=4). The csi2_pad above is only used as the CSI2
 # *source* pad index (i.e. capture-node selector).
+#
+# Cameras behind a multi-PHY serializer (ZED X) instead get a fixed slot per
+# DES, counted over every camera *declared* under the DES in ACPI path order
+# (populated or not). Both csi2_pad and the deserializer source_stream are set
+# to that slot; max96724 runs in pixel mode and so emits source_stream N on
+# VC N. This matches the camera HAL config (ar0234stereo.json), which pins
+# e.g. DES0.CH01.SER1.CH00.CAM0 / CH01.CAM1 / CH02...CAM0 / CAM1 to
+# Capture 0..3 with vcId 0..3.
 
 # =============================================================================
 # Per-sensor stream lookups
@@ -960,6 +1067,28 @@ discover || exit 1
 
 [ "$NUM_DES"  -gt 0 ] && { detect_gmsl_csi2 || exit 1; }
 [ "$NUM_MIPI" -gt 0 ] && { detect_mipi_csi2 || exit 1; }
+# Probe the source stream the live sensor driver exposes. ar0234 built with
+# CONFIG_VIDEO_ZEDX uses stream 1 for the ZED X secondary sensor (not 0x10).
+probe_sensor_sid() {
+    local model=$1 cam=$2 sid
+    case "$model" in
+        ar0234)
+            for sid in 0 1 2 3; do
+                sensor_active_format "$model" "$cam" single "$sid" >/dev/null \
+                    && { echo "$sid"; return 0; }
+            done
+            return 1
+            ;;
+    esac
+    return 1
+}
+
+for ckey in "${!CAM_MODEL[@]}"; do
+    if sid=$(probe_sensor_sid "${CAM_MODEL[$ckey]}" "${CAM_BA[$ckey]}"); then
+        CAM_SID[$ckey]=$sid
+    fi
+done
+
 print_topology
 
 # ---- GMSL programming (DES-based cameras) -----------------------------------
@@ -967,11 +1096,27 @@ print_topology
 # propagation, capture-node format) apply only to GMSL deserializer cameras.
 # Direct MIPI cameras are handled separately by setup_mipi_cameras() at the end.
 
+# CFG entry $1 -> camera key "d_l_p".
+cfg_ckey() { echo "${CFG_DES[$1]}_${CFG_LINKS[$1]}_${CFG_PHYS[$1]}"; }
+
+# CFG entry $1 -> human-readable location ("DES0 link 1[ PHY 0]").
+cfg_where() {
+    local key="${CFG_DES[$1]}_${CFG_LINKS[$1]}" w
+    w="DES${CFG_DES[$1]} link ${CFG_LINKS[$1]}"
+    (( SER_NPHYS[$key] > 1 )) && w+=" PHY ${CFG_PHYS[$1]}"
+    echo "$w"
+}
+
+# Sensor source stream of camera $1 for stream token $2.
+sensor_sid() { echo "${CAM_SID[$1]:-${STREAM_NODE[$2]}}"; }
+
 # ---- argument parsing ------------------------------------------------------
 
-# Each CFG entry is identified by (des_idx, link_idx) and carries a streams list.
+# Each CFG entry is identified by (des_idx, link_idx, phy_idx) and carries a
+# streams list.
 declare -a CFG_DES=()
 declare -a CFG_LINKS=()
+declare -a CFG_PHYS=()
 declare -a CFG_STREAMS=()
 declare -a CFG_RES=()
 declare -a CFG_FORMAT=()
@@ -981,25 +1126,28 @@ declare -A CFG_STREAM_FORMAT=()
 declare -A CFG_STREAM_FPS_REQUEST=()
 
 if [ "$#" -eq 0 ]; then
-    # Default: program every discovered link with its default or fixed stream.
+    # Default: program every discovered camera with its default or fixed stream.
     for ((d = 0; d < NUM_DES; d++)); do
         for l in ${LINKS_OF[$d]}; do
             key="${d}_${l}"
-            CFG_DES+=("$d")
-            CFG_LINKS+=("$l")
-            model=${CAM_MODEL[$key]}
-            streams=${MODEL_DEFAULT_STREAMS[$model]:-}
-            [ -n "$streams" ] || streams=$(fixed_stream_for_model "$model") \
-                || die "no stream configuration for $model"
-            CFG_STREAMS+=("$streams")
-            CFG_RES+=("")
-            CFG_FORMAT+=("")
-            CFG_FPS+=("")
+            for p in ${PHYS_OF[$key]}; do
+                CFG_DES+=("$d")
+                CFG_LINKS+=("$l")
+                CFG_PHYS+=("$p")
+                model=${CAM_MODEL[${key}_${p}]}
+                streams=${MODEL_DEFAULT_STREAMS[$model]:-}
+                [ -n "$streams" ] || streams=$(fixed_stream_for_model "$model") \
+                    || die "no stream configuration for $model"
+                CFG_STREAMS+=("$streams")
+                CFG_RES+=("")
+                CFG_FORMAT+=("")
+                CFG_FPS+=("")
+            done
         done
     done
 else
     for arg in "$@"; do
-        des=""; link=""; streams=""; res=""; format=""; fps=""
+        des=""; link=""; phy=""; streams=""; res=""; format=""; fps=""
         declare -A arg_stream_res=()
         declare -A arg_stream_format=()
         declare -A arg_stream_fps=()
@@ -1060,6 +1208,7 @@ else
             case "$kv" in
                 des=*)    des=${kv#des=} ;;
                 link=*)   link=${kv#link=} ;;
+                phy=*)    phy=${kv#phy=} ;;
                 stream=*) streams+="${streams:+ }${kv#stream=}" ;;
                 res=*)    res=${kv#res=} ;;
                 format=*) format=${kv#format=} ;;
@@ -1090,43 +1239,57 @@ else
         fi
         [[ $des =~ ^[0-9]+$ ]] || die "des must be numeric (got '$des')"
         (( des < NUM_DES )) || die "des=$des out of range (have ${NUM_DES} DES)"
+        [ -z "$phy" ] || [[ $phy =~ ^[0-9]+$ ]] || die "phy must be numeric (got '$phy')"
         key="${des}_${link}"
-        [ -n "${CAM_MODEL[$key]:-}" ] || die "no camera discovered on DES${des} link ${link}"
-        model=${CAM_MODEL[$key]}
-        if [ -n "${MODEL_STREAMS[$model]:-}" ]; then
-            [ -n "$streams" ] || streams=${MODEL_DEFAULT_STREAMS[$model]}
-            for s in $streams; do
-                stream_valid_for_model "$s" "$model" \
-                    || die "stream '$s' invalid for $model on DES${des} link ${link}"
-            done
-        else
-            fixed_stream=$(fixed_stream_for_model "$model") \
-                || die "no stream configuration for $model"
-            if [ -n "$streams" ] && [ "$streams" != "$fixed_stream" ]; then
-                echo "WARN: $model on DES${des} link ${link}: replacing requested" \
-                    "stream '$streams' with fixed stream '$fixed_stream'" >&2
+        [ -n "${PHYS_OF[$key]:-}" ] || die "no camera discovered on DES${des} link ${link}"
+        # phy= selects one camera of a multi-PHY serializer; otherwise the
+        # entry applies to every camera discovered on the link.
+        target_phys=${phy:-${PHYS_OF[$key]}}
+        req_streams=$streams
+        for p in $target_phys; do
+            ckey="${key}_${p}"
+            where="DES${des} link ${link}"
+            (( SER_NPHYS[$key] > 1 )) && where+=" PHY ${p}"
+            [ -n "${CAM_MODEL[$ckey]:-}" ] || die "no camera discovered on ${where}"
+            model=${CAM_MODEL[$ckey]}
+            streams=$req_streams
+            if [ -n "${MODEL_STREAMS[$model]:-}" ]; then
+                [ -n "$streams" ] || streams=${MODEL_DEFAULT_STREAMS[$model]}
+                for s in $streams; do
+                    stream_valid_for_model "$s" "$model" \
+                        || die "stream '$s' invalid for $model on ${where}"
+                done
+            else
+                fixed_stream=$(fixed_stream_for_model "$model") \
+                    || die "no stream configuration for $model"
+                if [ -n "$streams" ] && [ "$streams" != "$fixed_stream" ]; then
+                    echo "WARN: $model on ${where}: replacing requested" \
+                        "stream '$streams' with fixed stream '$fixed_stream'" >&2
+                fi
+                streams=$fixed_stream
             fi
-            streams=$fixed_stream
-        fi
-        CFG_DES+=("$des")
-        CFG_LINKS+=("$link")
-        CFG_STREAMS+=("$streams")
-        CFG_RES+=("$res")
-        CFG_FORMAT+=("$format")
-        CFG_FPS+=("$fps")
-        k=$((${#CFG_LINKS[@]} - 1))
-        for s in $streams; do
-            CFG_STREAM_RES["${k}_${s}"]=${arg_stream_res[$s]:-}
-            CFG_STREAM_FORMAT["${k}_${s}"]=${arg_stream_format[$s]:-}
-            CFG_STREAM_FPS_REQUEST["${k}_${s}"]=${arg_stream_fps[$s]:-${CFG_FPS[$k]}}
+            CFG_DES+=("$des")
+            CFG_LINKS+=("$link")
+            CFG_PHYS+=("$p")
+            CFG_STREAMS+=("$streams")
+            CFG_RES+=("$res")
+            CFG_FORMAT+=("$format")
+            CFG_FPS+=("$fps")
+            k=$((${#CFG_LINKS[@]} - 1))
+            for s in $streams; do
+                CFG_STREAM_RES["${k}_${s}"]=${arg_stream_res[$s]:-}
+                CFG_STREAM_FORMAT["${k}_${s}"]=${arg_stream_format[$s]:-}
+                CFG_STREAM_FPS_REQUEST["${k}_${s}"]=${arg_stream_fps[$s]:-${CFG_FPS[$k]}}
+            done
         done
         unset arg_stream_res arg_stream_format arg_stream_fps
     done
-    # Reject duplicate (des,link) entries.
+    # Reject duplicate (des,link,phy) entries.
     declare -A seen=()
     for k in "${!CFG_LINKS[@]}"; do
-        sk="${CFG_DES[$k]}_${CFG_LINKS[$k]}"
-        [ -z "${seen[$sk]:-}" ] || die "DES${CFG_DES[$k]} link ${CFG_LINKS[$k]} specified more than once"
+        sk="${CFG_DES[$k]}_${CFG_LINKS[$k]}_${CFG_PHYS[$k]}"
+        [ -z "${seen[$sk]:-}" ] || die "DES${CFG_DES[$k]} link ${CFG_LINKS[$k]}" \
+            "PHY ${CFG_PHYS[$k]} specified more than once"
         seen[$sk]=1
     done
 fi
@@ -1143,11 +1306,12 @@ declare -A CFG_STREAM_FPS_APPLY=()
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     l=${CFG_LINKS[$k]}
-    key="${d}_${l}"
-    model=${CAM_MODEL[$key]}
-    cam=${CAM_BA[$key]}
+    ckey=$(cfg_ckey "$k")
+    model=${CAM_MODEL[$ckey]}
+    cam=${CAM_BA[$ckey]}
+    where=$(cfg_where "$k")
     for s in ${CFG_STREAMS[$k]}; do
-        sid=${STREAM_NODE[$s]}
+        sid=$(sensor_sid "$ckey" "$s")
         requested_fmt=${CFG_STREAM_FORMAT["${k}_${s}"]:-${CFG_FORMAT[$k]}}
         requested_size=${CFG_STREAM_RES["${k}_${s}"]:-${CFG_RES[$k]}}
         if [ -n "$requested_fmt" ] || [ -n "$requested_size" ] ||
@@ -1156,11 +1320,11 @@ for k in "${!CFG_LINKS[@]}"; do
         fi
         detected=$(sensor_active_format "$model" "$cam" "$s" "$sid") || \
             die "cannot read active format from ${model} sensor on" \
-                "DES${d} link ${l}, stream ${s}"
+                "${where}, stream ${s}"
         read -r detected_fmt detected_size <<<"$detected"
         validated=$(sensor_validate_format_size "$model" "$cam" "$s" "$sid" \
             "$requested_fmt" "$requested_size" "$detected_fmt" "$detected_size" \
-            "DES${d} link ${l} stream ${s}")
+            "${where} stream ${s}")
         read -r selected_fmt CFG_STREAM_SIZE["${k}_${s}"] <<<"$validated"
         CFG_STREAM_PIXFMT["${k}_${s}"]=$(mbus_to_pixfmt "$selected_fmt")
         format_key="${model}_${s}_${selected_fmt}"
@@ -1177,10 +1341,10 @@ for k in "${!CFG_LINKS[@]}"; do
                 "${CFG_STREAM_FMT["${k}_${s}"]}" \
                 "${CFG_STREAM_SIZE["${k}_${s}"]}" \
                 "${CFG_STREAM_FPS_REQUEST["${k}_${s}"]}" "$active_fps" \
-                "DES${d} link ${l} stream ${s}" "$format_size_changed")
+                "${where} stream ${s}" "$format_size_changed")
         else
             [ -z "${CFG_STREAM_FPS_REQUEST["${k}_${s}"]}" ] || \
-                echo "WARN: DES${d} link ${l} stream ${s}: FPS control unavailable" >&2
+                echo "WARN: ${where} stream ${s}: FPS control unavailable" >&2
             CFG_STREAM_FPS["${k}_${s}"]="n/a"
             CFG_STREAM_FPS_REQUEST["${k}_${s}"]=""
         fi
@@ -1201,34 +1365,80 @@ declare -A CSI2_PAD_OWNER=()
 # EINVAL on set_fmt. We therefore allocate per-DES sequential ids 0..3
 # independent of the (larger) csi2_pad values used downstream.
 declare -A DES_STREAM=()
-declare -A DES_STREAM_NEXT=()
+declare -A DES_STREAM_USED=()
+
+# Fixed per-DES slot of every camera declared under the DES (populated or
+# not), in ACPI path order; each camera occupies as many slots as its default
+# stream count. Used for cameras behind multi-PHY serializers (ZED X).
+declare -A ACPI_SLOT=()
+for ((d = 0; d < NUM_DES; d++)); do
+    n=0
+    while read -r cp model; do
+        ACPI_SLOT[$cp]=$n
+        ns=${MODEL_DEFAULT_STREAMS[$model]:-$(fixed_stream_for_model "$model")}
+        ns=($ns)
+        n=$(( n + ${#ns[@]} ))
+    done < <(for dir in /sys/bus/acpi/devices/*; do
+                 cp=$(cat "$dir/path" 2>/dev/null) || continue
+                 [[ $cp == "${DES_PATH[$d]}".* ]] || continue
+                 hid=$(acpi_hid "$dir")
+                 [ -n "$hid" ] || continue
+                 model=${SENSOR_MODEL[$hid]:-}
+                 [ -n "$model" ] && echo "$cp $model"
+             done | sort)
+done
+
+# Claim csi2_pad $3 and deserializer source_stream $4 for CFG entry $1 stream $2.
+claim_stream() {
+    local k=$1 s=$2 pad=$3 ds=$4 d=${CFG_DES[$1]} where
+    where="$(cfg_where "$k") stream ${s}"
+    if (( pad >= IPU_CSI2_SRC_PADS )); then
+        die "${where}: csi2_pad ${pad} exceeds CSI2 src-pad cap "\
+        "(${IPU_CSI2_SRC_PADS}); reduce active links/streams or rebuild the kernel with a "\
+        "higher *_NR_OF_CSI2_SRC_PADS"
+    fi
+    if [ -n "${CSI2_PAD_OWNER[${d}_${pad}]:-}" ]; then
+        die "${where}: capture node offset ${pad} conflicts with "\
+        "${CSI2_PAD_OWNER[${d}_${pad}]}"
+    fi
+    if (( ds >= 4 )); then
+        die "DES${d}: too many streams routed through deserializer source pad (maxim-serdes "\
+        "supports 4 unique source_streams)"
+    fi
+    if [ -n "${DES_STREAM_USED[${d}_${ds}]:-}" ]; then
+        die "${where}: deserializer source_stream ${ds} conflicts with "\
+        "${DES_STREAM_USED[${d}_${ds}]}"
+    fi
+    CSI2_PAD_OWNER[${d}_${pad}]=$where
+    DES_STREAM_USED[${d}_${ds}]=$where
+    CSI2_PAD["${k}_${s}"]=$pad
+    DES_STREAM["${k}_${s}"]=$ds
+}
+
+# Multi-PHY serializer cameras first: csi2_pad == source_stream == ACPI slot.
+for k in "${!CFG_LINKS[@]}"; do
+    (( SER_NPHYS[${CFG_DES[$k]}_${CFG_LINKS[$k]}] > 1 )) || continue
+    ckey=$(cfg_ckey "$k")
+    slot=${ACPI_SLOT[${CAM_PATH[$ckey]}]:-}
+    [ -n "$slot" ] || die "$(cfg_where "$k"): no ACPI slot for ${CAM_PATH[$ckey]}"
+    for s in ${CFG_STREAMS[$k]}; do
+        claim_stream "$k" "$s" "$slot" "$slot"
+        slot=$(( slot + 1 ))
+    done
+done
+
+# Remaining cameras: capture bank/rotation layout and the lowest free
+# deserializer source_stream.
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     l=${CFG_LINKS[$k]}
-    key="${d}_${l}"
+    (( SER_NPHYS[${d}_${l}] > 1 )) && continue
     for s in ${CFG_STREAMS[$k]}; do
         pad=$(( STREAM_CAPTURE_BASE[$s] +
             (l + STREAM_LINK_ROTATION[$s]) % CSI2_NODE_BANK_SIZE ))
-        if (( pad >= IPU_CSI2_SRC_PADS )); then
-            die "DES${d} link ${l} stream ${s}: csi2_pad ${pad} exceeds CSI2 src-pad cap "\
-            "(${IPU_CSI2_SRC_PADS}); reduce active links/streams or rebuild the kernel with a "\
-            "higher *_NR_OF_CSI2_SRC_PADS"
-        fi
-        pad_key="${d}_${pad}"
-        if [ -n "${CSI2_PAD_OWNER[$pad_key]:-}" ]; then
-            die "DES${d} link ${l} stream ${s}: capture node offset ${pad} conflicts with "\
-            "${CSI2_PAD_OWNER[$pad_key]}"
-        fi
-        CSI2_PAD_OWNER[$pad_key]="link ${l} stream ${s}"
-        CSI2_PAD["${k}_${s}"]=$pad
-
-        ds=${DES_STREAM_NEXT[$d]:-0}
-        if (( ds >= 4 )); then
-            die "DES${d}: too many streams routed through deserializer source pad (maxim-serdes "\
-            "supports 4 unique source_streams)"
-        fi
-        DES_STREAM["${k}_${s}"]=$ds
-        DES_STREAM_NEXT[$d]=$(( ds + 1 ))
+        ds=0
+        while [ -n "${DES_STREAM_USED[${d}_${ds}]:-}" ]; do ds=$(( ds + 1 )); done
+        claim_stream "$k" "$s" "$pad" "$ds"
     done
 done
 
@@ -1240,8 +1450,10 @@ echo -e "\nConfiguration summary:"
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     l=${CFG_LINKS[$k]}
-    key="${d}_${l}"
-    echo -e "  DES${d} LINK${l}\t Sensor model\t ${CAM_MODEL[$key]}"
+    ckey=$(cfg_ckey "$k")
+    label="LINK${l}"
+    (( SER_NPHYS[${d}_${l}] > 1 )) && label+=" PHY${CFG_PHYS[$k]}"
+    echo -e "  DES${d} ${label}\t Sensor model\t ${CAM_MODEL[$ckey]}"
     for s in ${CFG_STREAMS[$k]}; do
         csi2_pad=${CSI2_PAD["${k}_${s}"]}
         node=$(( CAPTURE_BASE[d] + csi2_pad ))
@@ -1255,23 +1467,63 @@ done
 
 # ---- programming -----------------------------------------------------------
 
+# Per-CFG-entry serializer stream layout, set by cfg_ser_layout():
+#   SER_SINK_PAD  serializer sink pad (PHY) the camera is linked to
+#   SER_SRC_PAD   serializer source pad (== PHY count)
+# and, per stream token, by cfg_ser_streams():
+#   SER_SINK_SID  stream id on the serializer sink pad (== upstream source
+#                 stream: d4xx mux source stream, or the sensor source stream)
+#   SER_SRC_SID   stream id on the serializer source pad / deserializer sink
+#                 pad. Multi-PHY serializers (MAX9295D) number it after the
+#                 sink pad / pipe, so two cameras never share a stream id.
+cfg_ser_layout() {
+    local k=$1 key="${CFG_DES[$1]}_${CFG_LINKS[$1]}"
+    SER_SINK_PAD=${CAM_SER_PAD[$(cfg_ckey "$k")]}
+    SER_SRC_PAD=${SER_NPHYS[$key]}
+}
+cfg_ser_streams() {
+    local k=$1 s=$2 key="${CFG_DES[$1]}_${CFG_LINKS[$1]}" ckey model
+    ckey=$(cfg_ckey "$k")
+    model=${CAM_MODEL[$ckey]}
+    if [ "$model" = d4xx ]; then
+        SER_SINK_SID=${STREAM_NODE[$s]}
+    else
+        SER_SINK_SID=$(sensor_sid "$ckey" "$s")
+    fi
+    if (( SER_NPHYS[$key] > 1 )); then
+        SER_SRC_SID=$SER_SINK_PAD
+    else
+        SER_SRC_SID=${STREAM_NODE[$s]}
+    fi
+}
+
+# Is CFG entry $1 a ZED X camera (ar0234 behind a multi-PHY serializer)?
+cfg_is_zedx() {
+    [ "${CAM_MODEL[$(cfg_ckey "$1")]}" = ar0234 ] &&
+        (( SER_NPHYS[${CFG_DES[$1]}_${CFG_LINKS[$1]}] > 1 ))
+}
+
 # Per-DES route accumulators (the kernel resets per-stream pad formats whenever
-# routes are (re)programmed, so all -R must precede any -V).
+# routes are (re)programmed, so all -R must precede any -V). Serializer routes
+# are accumulated per serializer too, since a multi-PHY serializer is shared
+# by several cameras and must be programmed in a single call.
 declare -A DES_ROUTES=()
 declare -A CSI2_ROUTES=()
+declare -A SER_ROUTES=()
 
-# --- pass 1: per-link source-side routes (mux/serializer), and accumulate
+# --- pass 1: per-camera source-side routes (mux/serializer), and accumulate
 #             per-DES deserializer/CSI2 routes.
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     l=${CFG_LINKS[$k]}
     key="${d}_${l}"
-    model=${CAM_MODEL[$key]}
-    cam=${CAM_BA[$key]}
+    ckey=$(cfg_ckey "$k")
+    model=${CAM_MODEL[$ckey]}
+    cam=${CAM_BA[$ckey]}
     ser=${SER_BA[$key]}
     ser_pfx=${SER_PFX[$key]}
     sel_streams=(${CFG_STREAMS[$k]})
-    n=${#sel_streams[@]}
+    cfg_ser_layout "$k"
 
     # Stream IDs along the mux->serializer->deserializer chain are fixed
     # per sensor sub-stream (see STREAM_NODE): depth=0, rgb=1, ir=2, imu=3,
@@ -1296,37 +1548,26 @@ for k in "${!CFG_LINKS[@]}"; do
             done
             mux_routes=$(IFS=,; echo "${mux_route_parts[*]}")
 
-            mc_l "\"DS5 mux ${cam}\":0 -> \"${ser_pfx} ${ser}\":0[1]"
+            mc_l "\"DS5 mux ${cam}\":0 -> \"${ser_pfx} ${ser}\":${SER_SINK_PAD}[1]"
             mc_R "\"DS5 mux ${cam}\" [${mux_routes}]"
 
-            ser_route_parts=()
-            for s in "${sel_streams[@]}"; do
-                sid=${STREAM_NODE[$s]}
-                ser_route_parts+=("0/${sid}->1/${sid}[1]")
-            done
-            ser_routes=$(IFS=,; echo "${ser_route_parts[*]}")
-            mc_R "\"${ser_pfx} ${ser}\" [${ser_routes}]"
-
             unset is_selected
-            ;;
-        isx031|ar0234)
-            ser_route_parts=()
-            for s in "${sel_streams[@]}"; do
-                sid=${STREAM_NODE[$s]}
-                ser_route_parts+=("0/${sid}->1/${sid}[1]")
-            done
-            ser_routes=$(IFS=,; echo "${ser_route_parts[*]}")
-            mc_R "\"${ser_pfx} ${ser}\" [${ser_routes}]"
             ;;
     esac
 
     for s in "${sel_streams[@]}"; do
-        sid=${STREAM_NODE[$s]}
+        cfg_ser_streams "$k" "$s"
+        SER_ROUTES[$key]+="${SER_ROUTES[$key]:+,}${SER_SINK_PAD}/${SER_SINK_SID}->${SER_SRC_PAD}/${SER_SRC_SID}[1]"
         csi2_pad=${CSI2_PAD["${k}_${s}"]}
         des_stream=${DES_STREAM["${k}_${s}"]}
-        DES_ROUTES[$d]+="${DES_ROUTES[$d]:+,}${l}/${sid}->${DES_SRC_PAD[$d]}/${des_stream}[1]"
+        DES_ROUTES[$d]+="${DES_ROUTES[$d]:+,}${l}/${SER_SRC_SID}->${DES_SRC_PAD[$d]}/${des_stream}[1]"
         CSI2_ROUTES[$d]+="${CSI2_ROUTES[$d]:+,}0/${des_stream}->$((csi2_pad + 1))/0[1]"
     done
+done
+
+# Apply per-serializer route tables.
+for key in "${!SER_ROUTES[@]}"; do
+    mc_R "\"${SER_PFX[$key]} ${SER_BA[$key]}\" [${SER_ROUTES[$key]}]"
 done
 
 # Apply per-DES route tables.
@@ -1352,14 +1593,18 @@ for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
     l=${CFG_LINKS[$k]}
     key="${d}_${l}"
-    model=${CAM_MODEL[$key]}
-    cam=${CAM_BA[$key]}
+    ckey=$(cfg_ckey "$k")
+    model=${CAM_MODEL[$ckey]}
+    cam=${CAM_BA[$ckey]}
     ser=${SER_BA[$key]}
     ser_pfx=${SER_PFX[$key]}
     sel_streams=(${CFG_STREAMS[$k]})
+    where=$(cfg_where "$k")
+    cfg_ser_layout "$k"
 
     for s in "${sel_streams[@]}"; do
-        sid=${STREAM_NODE[$s]}
+        sid=$(sensor_sid "$ckey" "$s")
+        cfg_ser_streams "$k" "$s"
         csi2_pad=${CSI2_PAD["${k}_${s}"]}
         des_stream=${DES_STREAM["${k}_${s}"]}
         fmt=${CFG_STREAM_FMT["${k}_${s}"]}
@@ -1384,13 +1629,13 @@ for k in "${!CFG_LINKS[@]}"; do
                 [[ $fps =~ ^[0-9]+([.][0-9]+)?$ ]]; then
                 actual_fps=$(sensor_set_fps "$model" "$cam" "$s" "$sid" \
                     "$fps" \
-                    "DES${d} link ${l} stream ${s}") || \
-                    die "cannot configure FPS on DES${d} link ${l}, stream ${s}"
+                    "${where} stream ${s}") || \
+                    die "cannot configure FPS on ${where}, stream ${s}"
                 CFG_STREAM_FPS["${k}_${s}"]=$actual_fps
             fi
-        mc_v "\"${ser_pfx} ${ser}\":0/${sid} [fmt:${fmt}/${size} field:none]"
-        mc_v "\"${ser_pfx} ${ser}\":1/${sid} [fmt:${fmt}/${size} field:none]"
-        mc_v "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${l}/${sid} [fmt:${fmt}/${size} field:none]"
+        mc_v "\"${ser_pfx} ${ser}\":${SER_SINK_PAD}/${SER_SINK_SID} [fmt:${fmt}/${size} field:none]"
+        mc_v "\"${ser_pfx} ${ser}\":${SER_SRC_PAD}/${SER_SRC_SID} [fmt:${fmt}/${size} field:none]"
+        mc_v "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${l}/${SER_SRC_SID} [fmt:${fmt}/${size} field:none]"
         mc_v "\"${DES_PREFIX_NAME[$d]} ${DES_BA[$d]}\":${DES_SRC_PAD[$d]}/${des_stream} [fmt:${fmt}/${size} field:none]"
         mc_v "\"${IPU_CSI2_ENTITY[$d]}\":0/${des_stream} [fmt:${fmt}/${size} field:none]"
         mc_v "\"${IPU_CSI2_ENTITY[$d]}\":$((csi2_pad + 1))/0 [fmt:${fmt}/${size} field:none]"
@@ -1414,6 +1659,44 @@ for k in "${!CFG_LINKS[@]}"; do
             >/dev/null || die "cannot set /dev/video${vid_node} to ${pixfmt} ${size}"
     done
 done
+
+# ---- ZED X (ar0234 behind a multi-PHY serializer) ---------------------------
+# Enable stereo frame sync, prepare PSYS for the camera HAL (RAW Bayer), and
+# publish /dev/video-ar0234-<a..h>-<csi2> links: a..d = link 0..3 on PHY 0,
+# e..h = link 0..3 on PHY 1.
+zedx_used=0
+for k in "${!CFG_LINKS[@]}"; do
+    cfg_is_zedx "$k" || continue
+    zedx_used=1
+    d=${CFG_DES[$k]}
+    l=${CFG_LINKS[$k]}
+    if [ "${CFG_PHYS[$k]}" -ne 0 ]; then
+        suffix=$(echo "$l" | tr '0-3' 'e-h')
+    else
+        suffix=$(echo "$l" | tr '0-3' 'a-d')
+    fi
+    for s in ${CFG_STREAMS[$k]}; do
+        vid_node=$(( CAPTURE_BASE[d] + CSI2_PAD["${k}_${s}"] + VID_DEV_OFFSET ))
+        ln -snf "/dev/video${vid_node}" \
+            "/dev/video-ar0234-${suffix}-${IPU_CSI2_ENTITY[$d]: -1}" ||
+            echo "WARN: cannot create /dev/video-ar0234-${suffix} link" >&2
+    done
+done
+if (( zedx_used )); then
+    ZEDX_FRAME_SYNC=${ZEDX_FRAME_SYNC-1}
+    if [ -n "$ZEDX_FRAME_SYNC" ]; then
+        echo "$ZEDX_FRAME_SYNC" > /sys/module/ar0234/parameters/frame_sync ||
+            echo "WARN: cannot set ar0234 frame_sync=${ZEDX_FRAME_SYNC}" >&2
+    fi
+    psys=intel-${PREFIX,,}-psys
+    modprobe "$psys" || echo "WARN: cannot load ${psys}" >&2
+    mkdir -p /run/camera && chown root:video /run/camera && chmod 777 /run/camera ||
+        echo "WARN: cannot prepare /run/camera" >&2
+    if [ -e "/dev/${PREFIX,,}-psys0" ]; then
+        chown root:video "/dev/${PREFIX,,}-psys0" && chmod 777 "/dev/${PREFIX,,}-psys0" ||
+            echo "WARN: cannot set /dev/${PREFIX,,}-psys0 permissions" >&2
+    fi
+fi
 
 # ---- direct MIPI cameras (non-GMSL) -----------------------------------------
 setup_mipi_cameras
