@@ -84,7 +84,8 @@
 #   1. Add its ACPI HID -> model name in SENSOR_MODEL.
 #   2. Add its ACPI HID -> v4l-subdev entity prefix in SENSOR_PREFIX.
 #   3. For multi-stream models, list the stream tokens in MODEL_STREAMS and
-#      select their defaults in MODEL_DEFAULT_STREAMS.
+#      select their defaults in MODEL_DEFAULT_STREAMS (and, optionally,
+#      MODEL_OPTIONAL_DEFAULT_STREAMS).
 #   4. For each new stream token, set STREAM_NODE (and STREAM_MUXPAD if it
 #      flows through a d4xx-style mux).
 #   5. If your new media-bus code isn't covered, extend MBUS_TO_PIXFMT.
@@ -145,11 +146,17 @@ declare -A MAX_LINKS_BY_PREFIX=(
 # MODEL_STREAMS: stream tokens selectable for multi-stream models.
 # MODEL_DEFAULT_STREAMS: streams enabled for those models when no `stream=` is
 # given on the CLI.
+# MODEL_OPTIONAL_DEFAULT_STREAMS: streams appended to those defaults only while
+# the deserializer still has a free source_stream (max 4) and the stream's
+# capture node is unused, so multi-camera setups keep working unchanged.
 declare -A MODEL_STREAMS=(
     [d4xx]="depth rgb ir imu"
 )
 declare -A MODEL_DEFAULT_STREAMS=(
     [d4xx]="depth rgb"
+)
+declare -A MODEL_OPTIONAL_DEFAULT_STREAMS=(
+    [d4xx]="ir"
 )
 
 fixed_stream_for_model() {
@@ -743,7 +750,8 @@ print_topology() {
 # TOKEN is only applicable for multi-stream sensors as specified in MODEL_STREAMS.
 # Other 2D sensors do not need stream=<csv>, they default to `single`.
 #
-# D4xx defaults to depth,rgb when no stream is specified.
+# D4xx defaults to depth,rgb when no stream is specified, plus ir when the
+# deserializer has a spare source_stream and the ir capture node is free.
 #
 # When des= is omitted, des=0 is assumed (matches the legacy single-DES CLI).
 #
@@ -1125,6 +1133,8 @@ declare -a CFG_FPS=()
 declare -A CFG_STREAM_RES=()
 declare -A CFG_STREAM_FORMAT=()
 declare -A CFG_STREAM_FPS_REQUEST=()
+# CFG entries whose streams came from MODEL_DEFAULT_STREAMS.
+declare -A CFG_DEFAULT_STREAMS=()
 
 if [ "$#" -eq 0 ]; then
     # Default: program every discovered camera with its default or fixed stream.
@@ -1139,6 +1149,7 @@ if [ "$#" -eq 0 ]; then
                 streams=${MODEL_DEFAULT_STREAMS[$model]:-}
                 [ -n "$streams" ] || streams=$(fixed_stream_for_model "$model") \
                     || die "no stream configuration for $model"
+                CFG_DEFAULT_STREAMS[${#CFG_STREAMS[@]}]=1
                 CFG_STREAMS+=("$streams")
                 CFG_RES+=("")
                 CFG_FORMAT+=("")
@@ -1255,7 +1266,13 @@ else
             model=${CAM_MODEL[$ckey]}
             streams=$req_streams
             if [ -n "${MODEL_STREAMS[$model]:-}" ]; then
-                [ -n "$streams" ] || streams=${MODEL_DEFAULT_STREAMS[$model]}
+                if [ -z "$streams" ]; then
+                    streams=${MODEL_DEFAULT_STREAMS[$model]}
+                    # A link-level res/format applies to every stream; don't
+                    # risk applying it to optional streams too.
+                    [ -n "$res$format" ] || \
+                        CFG_DEFAULT_STREAMS[${#CFG_STREAMS[@]}]=1
+                fi
                 for s in $streams; do
                     stream_valid_for_model "$s" "$model" \
                         || die "stream '$s' invalid for $model on ${where}"
@@ -1294,6 +1311,39 @@ else
         seen[$sk]=1
     done
 fi
+
+# Capture-node offset (csi2_pad) of stream $1 on link $2 for cameras that are
+# not behind a multi-PHY serializer.
+stream_csi2_pad() {
+    echo $(( STREAM_CAPTURE_BASE[$1] +
+        ($2 + STREAM_LINK_ROTATION[$1]) % CSI2_NODE_BANK_SIZE ))
+}
+
+# Append MODEL_OPTIONAL_DEFAULT_STREAMS to default-stream entries while the
+# deserializer has a spare source_stream and the capture node is free.
+for k in "${!CFG_LINKS[@]}"; do
+    [ -n "${CFG_DEFAULT_STREAMS[$k]:-}" ] || continue
+    d=${CFG_DES[$k]}
+    l=${CFG_LINKS[$k]}
+    (( SER_NPHYS[${d}_${l}] > 1 )) && continue
+    model=${CAM_MODEL[$(cfg_ckey "$k")]}
+    for s in ${MODEL_OPTIONAL_DEFAULT_STREAMS[$model]:-}; do
+        pad=$(stream_csi2_pad "$s" "$l")
+        n=0
+        free=1
+        for j in "${!CFG_LINKS[@]}"; do
+            [ "${CFG_DES[$j]}" = "$d" ] || continue
+            for t in ${CFG_STREAMS[$j]}; do
+                n=$(( n + 1 ))
+                (( SER_NPHYS[${d}_${CFG_LINKS[$j]}] > 1 )) && continue
+                [ "$(stream_csi2_pad "$t" "${CFG_LINKS[$j]}")" = "$pad" ] && free=0
+            done
+        done
+        (( free && n < 4 )) || continue
+        CFG_STREAMS[$k]+=" $s"
+        CFG_STREAM_FPS_REQUEST["${k}_${s}"]=${CFG_FPS[$k]:-}
+    done
+done
 
 # Resolve and validate each selected stream's format, size and FPS. Unsupported
 # FPS requests retain the active FPS when format/size stay unchanged. After an
@@ -1435,8 +1485,7 @@ for k in "${!CFG_LINKS[@]}"; do
     l=${CFG_LINKS[$k]}
     (( SER_NPHYS[${d}_${l}] > 1 )) && continue
     for s in ${CFG_STREAMS[$k]}; do
-        pad=$(( STREAM_CAPTURE_BASE[$s] +
-            (l + STREAM_LINK_ROTATION[$s]) % CSI2_NODE_BANK_SIZE ))
+        pad=$(stream_csi2_pad "$s" "$l")
         ds=0
         while [ -n "${DES_STREAM_USED[${d}_${ds}]:-}" ]; do ds=$(( ds + 1 )); done
         claim_stream "$k" "$s" "$pad" "$ds"
