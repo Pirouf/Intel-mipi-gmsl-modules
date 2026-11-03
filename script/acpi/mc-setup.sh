@@ -42,8 +42,8 @@
 #   INTC10C0 = AR0234 camera (entity prefix:   "ar0234")
 #   OVTI13B1 = OV13B10 camera (entity prefix: "ov13b10")
 #   INTC1138 = MAX9295 serializer               (entity prefix: "max96717")
-#   INTC1141 = MAX96717 serializer              (entity prefix: "max96717")
 #   INTC1140 = MAX9295D serializer (ZED X)      (2 PHYs, entity prefix: "max96717")
+#   INTC1141 = MAX96717 serializer (M3A)        (1 PHY,  entity prefix: "max96717")
 #   INTC1137 = MAX9296A deserializer            (entity prefix: "max9296a")
 #   INTC1139 = MAX96724 deserializer            (entity prefix: "max96724")
 
@@ -127,6 +127,7 @@ declare -A SER_PREFIX=(
 declare -A SER_NUM_PHYS=(
     [INTC1138]=1
     [INTC1140]=2
+    [INTC1141]=1
 )
 declare -A DES_PREFIX=(
     [INTC1137]="max9296a"
