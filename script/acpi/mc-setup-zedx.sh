@@ -40,8 +40,9 @@
 #   INTC10CD = D4XX camera   (entity prefixes: "DS5 mux", "D4XX depth/rgb/ir/imu")
 #   INTC113C = ISX031 camera (entity prefix:   "isx031")
 #   INTC10C0 = AR0234 camera (entity prefix:   "ar0234")
-#   INTC1138 = MAX9295A / MAX96717 serializer   (1 PHY,  entity prefix: "max96717")
+#   INTC1138 = MAX9295A serializer              (1 PHY,  entity prefix: "max96717")
 #   INTC1140 = MAX9295D serializer              (2 PHYs, entity prefix: "max96717")
+#   INTC1141 = MAX96717 serializer (M3A)        (1 PHY,  entity prefix: "max96717")
 #   INTC1137 = MAX9296A deserializer            (entity prefix: "max9296a")
 #   INTC1139 = MAX96724 deserializer            (entity prefix: "max96724")
 
@@ -110,6 +111,7 @@ declare -A MIPI_SENSOR_HID=(
 declare -A SER_PREFIX=(
     [INTC1138]="max96717"
     [INTC1140]="max96717"
+    [INTC1141]="max96717"
 )
 
 # Number of camera-facing PHYs (sink pads) a serializer model exposes.
@@ -120,6 +122,7 @@ declare -A SER_PREFIX=(
 declare -A SER_NUM_PHYS=(
     [INTC1138]=1
     [INTC1140]=2
+    [INTC1141]=1
 )
 declare -A DES_PREFIX=(
     [INTC1137]="max9296a"
