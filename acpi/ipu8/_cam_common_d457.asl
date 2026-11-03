@@ -43,7 +43,11 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
     I2cSerialBusV2 (
         0x0010,                 // SlaveAddress (0x10 based on D4XX hardware)
         ControllerInitiated,    // SlaveMode
-        0x00061A80,             // ConnectionSpeed
+#ifdef I2C_SPEED
+        I2C_SPEED,              // I2C ConnectionSpeed (e.g. 100000 for 100kHz)
+#else
+        400000,                 // I2C ConnectionSpeed (400000 for 400kHz)
+#endif
         AddressingMode7Bit,     // AddressingMode
         DESCH_SER_PATH,         // ResourceSource (Path to parent SER, e.g. "\\_SB.PC00.DESx.CHxx.SERx")
         0x00,                   // ResourceSourceIndex
@@ -61,8 +65,6 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
         Package () { "mipi-img-clock-frequency", 96000000 }, // 96 MHz
 
         /*
-         * Sensor specific GPIOs, reset-gpios will be used by d4xx.c
-         * when devm_gpiod_get_optional is being called with "reset" consumer.
          * For details, please refer to ACPI GPIO binding documentation
          * https://www.kernel.org/doc/html/latest/firmware-guide/acpi/gpio-properties.html
          *
@@ -72,7 +74,14 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
          * 1 is active low for reset
          *
          */
-        Package () { "reset-gpios", Package () { DESCH_SER_GPIOREF, 0, 0, 1 } },
+#ifdef DESCH_SER_FSIN_GPIO
+        Package () { "fsin-gpios", Package () { DESCH_SER_GPIOREF, 0, 0, 1 } },
+#endif
+#ifdef EXTERNAL_FRAME_SYNC
+        Package () { "gmsl-frame-sync-enable", EXTERNAL_FRAME_SYNC },
+#else
+        Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
+#endif
     },
     ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
     Package ()
