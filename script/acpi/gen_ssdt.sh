@@ -56,7 +56,9 @@ fi
 # cannot leave the old AML in place to be packaged below.
 rm -f "$AML" "$SSDT_IMG"
 
-iasl -li "$1"
+# iasl resolves Include()/#include only against the cwd and -I paths, so add
+# the ASL's directory and its parent (shared fragments like _ipu.asl) to find sibling fragments.
+iasl -li -I "$(dirname "$1")" -I "$(dirname "$1")/.." "$1"
 ASL_DIR="$PWD"
 
 # iasl can return 0 with warnings but skip writing the AML on errors;
