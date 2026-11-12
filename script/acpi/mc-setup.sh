@@ -70,8 +70,17 @@
 #
 # Example:
 #   DES_HID=INTC1139 ./mc-setup.sh \
-#       link=0,stream=depth,res=1280x720,format=UYVY8_1X16 \
-#       link=1,stream=depth
+#       des=0,link=0,stream=depth,res=1280x720,format=UYVY8_1X16 \
+#       des=0,link=1,stream=depth
+#
+# des= and link= also accept inclusive ranges ("A-B") to expand one argument
+# into every (des,link) combination, e.g. to set all 8 sensors behind DES0/
+# DES1 LINK0-3 to the same resolution in one shot:
+#   ./mc-setup.sh des=0-1,link=0-3,res=1280x960
+# is equivalent to listing des=0,link=0 .. des=1,link=3 individually.
+#
+# See doc/acpi/userspace-gmsl.md for the full `des=,link=,stream=,res=,
+# format=,fps=` command reference and sample output.
 #
 # =============================================================================
 # USER CONFIGURATION
@@ -865,8 +874,9 @@ sensor_active_fps() {
 }
 
 # Print the requested format/size after checking the sensor's advertised
-# format-resolution combinations. Retain the active format when unsupported;
-# use the largest resolution advertised for a supported format.
+# format-resolution combinations. Retain the active format when unsupported.
+# An omitted or unsupported resolution falls back to the sensor's largest
+# (native default) advertised resolution, not whatever is currently active.
 sensor_validate_format_size() {
     local model=$1 cam=$2 stream=$3 sid=$4 requested_fmt=$5 requested_size=$6
     local active_fmt=$7 active_size=$8 context=$9 dev codes line code name
@@ -916,7 +926,7 @@ sensor_validate_format_size() {
         done <<<"$codes"
     fi
 
-    if [ -n "$requested_size" ] && [ -n "$selected_code" ]; then
+    if [ -n "$selected_code" ]; then
         sizes=$(v4l2-ctl -d "$dev" --list-subdev-framesizes \
             pad="$SENSOR_PAD",stream="$SENSOR_SID",code="$selected_code" 2>/dev/null) || sizes=""
         supported=0
@@ -930,9 +940,12 @@ sensor_validate_format_size() {
                     largest_w=$max_w
                     largest_h=$max_h
                 fi
-                req_w=${requested_size%x*}; req_h=${requested_size#*x}
-                if (( req_w >= min_w && req_w <= max_w && req_h >= min_h && req_h <= max_h )); then
-                    supported=1
+                if [ -n "$requested_size" ]; then
+                    req_w=${requested_size%x*}; req_h=${requested_size#*x}
+                    if (( req_w >= min_w && req_w <= max_w &&
+                          req_h >= min_h && req_h <= max_h )); then
+                        supported=1
+                    fi
                 fi
             elif [[ $line =~ Size:[[:space:]]Discrete[[:space:]]([0-9]+)x([0-9]+) ]]; then
                 max_w=${BASH_REMATCH[1]}; max_h=${BASH_REMATCH[2]}
@@ -942,13 +955,19 @@ sensor_validate_format_size() {
                     largest_w=$max_w
                     largest_h=$max_h
                 fi
-                req_w=${requested_size%x*}; req_h=${requested_size#*x}
-                if (( req_w == max_w && req_h == max_h )); then
-                    supported=1
+                if [ -n "$requested_size" ]; then
+                    req_w=${requested_size%x*}; req_h=${requested_size#*x}
+                    if (( req_w == max_w && req_h == max_h )); then
+                        supported=1
+                    fi
                 fi
             fi
         done <<<"$sizes"
-        if [ -n "$sizes" ] && (( ! supported )); then
+        if [ -z "$requested_size" ]; then
+            # No res= requested: default to the native (largest) resolution
+            # instead of whatever happens to be active on the sensor.
+            (( largest_area > 0 )) && selected_size="${largest_w}x${largest_h}"
+        elif [ -n "$sizes" ] && (( ! supported )); then
             printf "WARN: %s: resolution '%s' is unsupported with format '%s'; " \
                 "$context" "$requested_size" "$selected_fmt" >&2
             if (( largest_area > 0 )); then
@@ -1102,7 +1121,70 @@ check_media_ctl_version() {
     fi
 }
 
+print_usage() {
+    cat <<'EOF'
+Usage: mc-setup.sh [ARG ...]
+
+Discover the GMSL/MIPI camera topology via ACPI/sysfs and program the media
+graph with media-ctl. With no ARGs, every discovered link is programmed
+with its default/fixed stream.
+
+Each ARG configures one or more links:
+    [des=D,]link=N[,stream=<csv>][,res=WxH][,format=MBUS_CODE][,fps=FPS]
+
+  des=D        Deserializer index. Required when multiple DES are present;
+               defaults to 0 if omitted and only one DES exists.
+  link=N       Link (channel) index on the deserializer.
+  stream=CSV   Stream token(s), for multi-stream sensors only (e.g. d4xx:
+               depth,rgb,ir,imu). Single-stream sensors (isx031, ar0234,
+               ov13b10) default to "single" and don't need this.
+  res=WxH      Requested resolution, e.g. 1280x960. Falls back to the
+               sensor's native (largest) resolution if omitted or
+               unsupported.
+  format=CODE  Requested media-bus code, e.g. UYVY8_1X16.
+  fps=FPS      Requested frame rate.
+
+des= and link= accept inclusive ranges "A-B" to expand one ARG into every
+(des,link) combination, and link= may be omitted entirely to mean "every
+discovered link" (optionally scoped by des=):
+    mc-setup.sh des=0-1,link=0-3,res=1280x960   # DES0+DES1, LINK0-3
+    mc-setup.sh res=1280x960                    # every discovered sensor
+
+Any discovered link not covered by an ARG is still programmed, using its
+default stream and native resolution/format/fps.
+
+Multi-stream sensors (e.g. d4xx) also accept bracketed per-stream settings:
+    des=D,link=N,stream=[TOKEN,res=WxH,format=MBUS_CODE,fps=FPS],[TOKEN,...]
+
+ar0234 only supports des=, link=, res=; stream=/format=/fps= are ignored
+with a warning.
+
+Environment variable overrides:
+  DES_HID=<hid>             Restrict discovery to one deserializer HID.
+  DES_BUSADDR=<bus>-<addr>  Restrict discovery to one I2C bus-addr.
+  MAX_LINKS_max96724        Max links per MAX96724 DES (default 4).
+  MAX_LINKS_max9296a        Max links per MAX9296A DES (default 2).
+  IPU_CSI2_SRC_PADS         IPU7 CSI2 RX source-pad cap (default 16).
+
+Examples:
+    mc-setup.sh
+    mc-setup.sh des=0,link=0,res=1280x960
+    mc-setup.sh des=0-1,link=0-3,res=1280x960
+    mc-setup.sh res=1280x960
+    DES_HID=INTC1139 mc-setup.sh \
+        des=0,link=0,stream=depth,res=1280x720,format=UYVY8_1X16 \
+        des=0,link=1,stream=depth
+
+See doc/acpi/userspace-gmsl.md for the full command reference and sample
+output.
+EOF
+}
+
 # -------- main ----------------------------------------------------------------
+
+case "${1:-}" in
+    -h|--help) print_usage; exit 0 ;;
+esac
 
 check_media_tools
 check_media_ctl_version
@@ -1164,6 +1246,66 @@ cfg_where() {
 # Sensor source stream of camera $1 for stream token $2.
 sensor_sid() { echo "${CAM_SID[$1]:-${STREAM_NODE[$2]}}"; }
 
+# Expand "des=A-B" / "link=A-B" ranges in one raw CLI arg into one arg per
+# (des,link) combination, e.g. "des=0-1,link=0-3,res=W" -> 8 args. Plain
+# "des=N"/"link=N" (no dash) pass through as a single combination. A missing
+# link= expands to every discovered link (optionally scoped to des=, which
+# may itself be a range), so e.g. "res=W" alone applies to every sensor.
+expand_arg_ranges() {
+    local arg=$1 d_spec l_spec d_lo d_hi l_lo l_hi d l rest
+
+    # mipi=N selects a single direct-MIPI camera, not a des=/link= range.
+    if [[ $arg == *'mipi='* ]]; then
+        echo "$arg"
+        return
+    fi
+
+    if [[ $arg == *'link='* ]]; then
+        l_spec=$(grep -oP 'link=\K[0-9]+(-[0-9]+)?' <<<"$arg" | head -1)
+        [ -n "$l_spec" ] || die "invalid link= value in '$arg'"
+    fi
+    if [[ $arg == *'des='* ]]; then
+        d_spec=$(grep -oP 'des=\K[0-9]+(-[0-9]+)?' <<<"$arg" | head -1)
+        [ -n "$d_spec" ] || die "invalid des= value in '$arg'"
+    fi
+
+    if [ -z "$l_spec" ]; then
+        if [ -z "$d_spec" ]; then d_lo=0; d_hi=$((NUM_DES - 1))
+        elif [[ $d_spec == *-* ]]; then d_lo=${d_spec%-*}; d_hi=${d_spec#*-}
+        else d_lo=$d_spec; d_hi=$d_spec; fi
+        [ "$d_lo" -le "$d_hi" ] || die "des range '$d_spec' is backwards in '$arg'"
+
+        rest=$(sed -E 's/^des=[0-9]+(-[0-9]+)?,?//' <<<"$arg")
+        for ((d = d_lo; d <= d_hi; d++)); do
+            for l in ${LINKS_OF[$d]}; do
+                [ -n "$rest" ] && echo "des=${d},link=${l},${rest}" || echo "des=${d},link=${l}"
+            done
+        done
+        return
+    fi
+
+    if [[ $l_spec == *-* ]]; then l_lo=${l_spec%-*}; l_hi=${l_spec#*-}
+    else l_lo=$l_spec; l_hi=$l_spec; fi
+    [ "$l_lo" -le "$l_hi" ] || die "link range '$l_spec' is backwards in '$arg'"
+
+    if [ -z "$d_spec" ]; then
+        for ((l = l_lo; l <= l_hi; l++)); do
+            sed -E "s/link=[0-9]+(-[0-9]+)?/link=$l/" <<<"$arg"
+        done
+        return
+    fi
+
+    if [[ $d_spec == *-* ]]; then d_lo=${d_spec%-*}; d_hi=${d_spec#*-}
+    else d_lo=$d_spec; d_hi=$d_spec; fi
+    [ "$d_lo" -le "$d_hi" ] || die "des range '$d_spec' is backwards in '$arg'"
+
+    for ((d = d_lo; d <= d_hi; d++)); do
+        for ((l = l_lo; l <= l_hi; l++)); do
+            sed -E "s/des=[0-9]+(-[0-9]+)?/des=$d/; s/link=[0-9]+(-[0-9]+)?/link=$l/" <<<"$arg"
+        done
+    done
+}
+
 # ---- argument parsing ------------------------------------------------------
 
 # Each CFG entry is identified by (des_idx, link_idx, phy_idx) and carries a
@@ -1203,7 +1345,14 @@ if [ "$#" -eq 0 ]; then
         done
     done
 else
+    declare -a expanded_args=()
     for arg in "$@"; do
+        des=""; link=""; phy=""; streams=""; res=""; format=""; fps=""
+        while IFS= read -r expanded; do
+            expanded_args+=("$expanded")
+        done < <(expand_arg_ranges "$arg")
+    done
+    for arg in "${expanded_args[@]}"; do
         des=""; link=""; phy=""; streams=""; res=""; format=""; fps=""
         declare -A arg_stream_res=()
         declare -A arg_stream_format=()
@@ -1310,6 +1459,13 @@ else
             [ -n "${CAM_MODEL[$ckey]:-}" ] || die "no camera discovered on ${where}"
             model=${CAM_MODEL[$ckey]}
             streams=$req_streams
+            if [ "$model" = "ar0234" ] &&
+		   { [ -n "$streams" ] || [ -n "$format" ] || [ -n "$fps" ]; }; then
+		echo "WARN: ar0234 on DES${des} link ${link}: only des=, link=, res= are" \
+                     "supported; ignoring stream=/format=/fps=" >&2
+		streams=""; format=""; fps=""
+		arg_stream_res=(); arg_stream_format=(); arg_stream_fps=()
+            fi
             if [ -n "${MODEL_STREAMS[$model]:-}" ]; then
                 if [ -z "$streams" ]; then
                     streams=${MODEL_DEFAULT_STREAMS[$model]}
@@ -1354,6 +1510,27 @@ else
         [ -z "${seen[$sk]:-}" ] || die "DES${CFG_DES[$k]} link ${CFG_LINKS[$k]}" \
             "PHY ${CFG_PHYS[$k]} specified more than once"
         seen[$sk]=1
+    done
+    # Any discovered link not explicitly mentioned is still programmed, with
+    # its default stream and native resolution/format/fps, so a partial
+    # command never leaves other links in a stale, unconfigured state.
+    for ((d = 0; d < NUM_DES; d++)); do
+        for l in ${LINKS_OF[$d]}; do
+            sk="${d}_${l}"
+            [ -z "${seen[$sk]:-}" ] || continue
+            key="${d}_${l}"
+            model=${CAM_MODEL[$key]}
+            streams=${MODEL_DEFAULT_STREAMS[$model]:-}
+            [ -n "$streams" ] || streams=$(fixed_stream_for_model "$model") \
+                || die "no stream configuration for $model"
+            CFG_DES+=("$d")
+            CFG_LINKS+=("$l")
+            CFG_STREAMS+=("$streams")
+            CFG_RES+=("")
+            CFG_FORMAT+=("")
+            CFG_FPS+=("")
+            seen[$sk]=1
+        done
     done
 fi
 
