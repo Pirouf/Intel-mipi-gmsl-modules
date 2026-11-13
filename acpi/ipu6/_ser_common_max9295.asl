@@ -10,10 +10,29 @@
  *   DESCH_LINK_NUM       - DES channel number (e.g. 0 for CH00, 1 for CH01), used in CSI2Bus
  *   DESCH_SER_I2C        - SER I2C slave address (e.g. 0x40, 0x62), used in I2cSerialBusV2
  *   CAM_ALIAS            - Camera alias I2C address used in i2c-alias-pool in _DSD
- *   DESCH_SER_EXTRA_GPIO_PIN - (Optional) SER Extra GPIO pin number, used in GpioIo
+ *   DESCH_SER_RESET_GPIO - (Optional) SER Reset GPIO pin number, used in GpioIo
+ *   DESCH_SER_FSIN_GPIO  - (Optional) SER Extra GPIO pin number, used in GpioIo
  *   DESCH_SER_FSYNC_RX_ID - (Optional) GMSL GPIO ID the DES sends frame sync as, used in MFP node
  *   DESCH_SER_X/Y/Z/U_VC - (Optional) SER VC filter for Pipe X/Y/Z/U, specifically for MAX96717 driver
  */
+
+#ifndef DESCH_SER_RESET_GPIO
+#ifndef DESCH_SER_FSIN_GPIO
+
+#define DESCH_SER_RESET_GPIO 0
+
+#endif
+#endif
+
+#ifdef DESCH_SER_RESET_GPIO
+#ifdef DESCH_SER_FSIN_GPIO
+
+#if DESCH_SER_RESET_GPIO == DESCH_SER_FSIN_GPIO
+#error "DESCH_SER_RESET_GPIO and DESCH_SER_FSIN_GPIO cannot be the same GPIO pin number"
+#endif
+
+#endif
+#endif
 
 Method (_STA, 0, NotSerialized) // _STA: Status
 {
@@ -50,7 +69,11 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
     I2cSerialBusV2 (
         DESCH_SER_I2C,          // SlaveAddress (e.g. 0x40, 0x62 based on Serializer Hardware)
         ControllerInitiated,    // SlaveMode
-        0x00061A80,             // ConnectionSpeed
+#ifdef I2C_SPEED
+        I2C_SPEED,              // I2C ConnectionSpeed (e.g. 100000 for 100kHz)
+#else
+        400000,                 // I2C ConnectionSpeed (400000 for 400kHz)
+#endif
         AddressingMode7Bit,     // AddressingMode
         DESCH_CH_PATH,          // ResourceSource (e.g. "\\_SB.PC00.DESx.CHxx") based on which Link
         0x00,                   // ResourceSourceIndex
@@ -68,9 +91,14 @@ Name(_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
         DESCH_SER_PATH,         // ResourceSourceIndex (Path to SER GPIO controller, e.g. "\\_SB.PC00.DESx.CHxx.SERx" based on which Link)
         0)                      // ResourceUsage (Must be 0)
     {
-        0,                      // Pin 0 (e.g. MFP0 on MAX9295)
-#ifdef DESCH_SER_EXTRA_GPIO_PIN
-        DESCH_SER_EXTRA_GPIO_PIN,   // Extra pin (e.g. MFP7 on MAX9295)
+#ifdef DESCH_SER_RESET_GPIO
+        DESCH_SER_RESET_GPIO,   // Pin 0 (e.g. MFP0 on MAX9295)
+#endif
+#ifdef DESCH_SER_FSIN_GPIO
+        DESCH_SER_FSIN_GPIO,   // Extra pin (e.g. MFP7 on MAX9295)
+#endif
+#ifdef DESCH_SER_FSIN_GPIO_2
+        DESCH_SER_FSIN_GPIO_2,   // Extra pin (e.g. MFP7 on MAX9295)
 #endif
     }
 })
@@ -95,9 +123,6 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
 #else
         Package () { "gmsl-frame-sync-enable", 0 }, // Disabled by default
 #endif
-#ifdef DESCH_SER_EXTRA_GPIO_PIN
-        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_EXTRA_GPIO_PIN },
-#endif
     },
     ToUUID("dbb8e3e6-5886-4ba6-8795-1319f52a966b"), // Hierarchical Data Extension
     Package ()
@@ -111,10 +136,19 @@ Name (_DSD, Package ()          // _DSD: Device-Specific Data
         Package () { "Pipe-Y", "PIPY" }, // Pipe Y
         Package () { "Pipe-Z", "PIPZ" }, // Pipe Z
         Package () { "Pipe-U", "PIPU" }, // Pipe U
+#ifdef EXTERNAL_FRAME_SYNC
+#ifdef DESCH_SER_FSYNC_RX_ID
+#ifdef DESCH_SER_FSIN_GPIO
         Package () { "fsync", "MFP" }, // fsync pin configuration
+#endif
+#endif
+#endif
     }
 })
 
+#ifdef EXTERNAL_FRAME_SYNC
+#ifdef DESCH_SER_FSYNC_RX_ID
+#ifdef DESCH_SER_FSIN_GPIO
 Name (MFP, Package()
 {
     ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"), // Device Properties
@@ -123,11 +157,17 @@ Name (MFP, Package()
         #ifdef DESCH_SER_FSYNC_RX_ID
         Package () { "maxim,rx-id", DESCH_SER_FSYNC_RX_ID }, // GMSL GPIO ID sent by the DES
         #endif
-        #ifdef DESCH_SER_EXTRA_GPIO_PIN
-        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_EXTRA_GPIO_PIN },
+        #ifdef DESCH_SER_FSIN_GPIO
+        Package () { "gmsl-frame-sync-gpio-pin", DESCH_SER_FSIN_GPIO },
+        #endif
+        #ifdef DESCH_SER_FSIN_GPIO_2
+        Package () { "gmsl-frame-sync-gpio-pin-2", DESCH_SER_FSIN_GPIO_2 },
         #endif
     },
 })
+#endif
+#endif
+#endif
 
 Name (PRT0, Package()
 {
