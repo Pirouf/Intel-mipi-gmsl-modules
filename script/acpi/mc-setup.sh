@@ -228,6 +228,21 @@ declare -A STREAM_FORMAT_MAP=(
 
 # -------- low-level helpers ---------------------------------------------------
 
+# Find the IPU from all media device entities.
+capture_media_of_devices() {
+    v4l2-ctl --list-devices | awk '
+        /ipu/ { in_ipu=1; next } /^[^[:space:]]/ &&
+	in_ipu { exit } in_ipu &&
+	/media/ { print }
+    ' | while read -r ipu_mdev; do
+	if [ -z "$ipu_mdev" ]; then
+	    exit /dev/media0
+	else
+	    echo $ipu_mdev
+	fi;
+    done
+}
+
 # Find the lowest "ISYS Capture N" index linked from a given CSI2 entity.
 # Reads media-ctl topology from stdin.
 capture_base_of_csi2() {
@@ -297,34 +312,53 @@ acpi_children_of() {
 # HID/UID of an ACPI sysfs dir
 acpi_hid() { cat "$1/hid" 2>/dev/null; }
 
+# Find IPU media device.
+# For case with usb camera plugged in during the boot,
+# usb media controller will occupy index 0
+mdev=$(capture_media_of_devices)
+
+# debug mc commands output
+quiet=1
+out() {
+  [[ $quiet -eq 0 ]] && echo -n "${@}    " >&2
+  "${@}"
+  [[ $quiet -eq 0 ]] && echo "        RET=$?" >&2
+}
+
 # Wrappers around `media-ctl` that print the exact failing arg on error so
 # link-setup, routing and format-propagation issues are easy to pin down.
 # Each wrapper preserves the underlying `media-ctl` exit status so callers
 # checking $? still see the failure.
 mc_l() {
     local rc
-    media-ctl -l "$1"; rc=$?
+    [[ $quiet -eq 0 ]] && echo -n "media-ctl -d ${mdev} -R "$1"    " >&2
+    media-ctl -d ${mdev} -l "$1"; rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "  ^^ failed: media-ctl -l $1" >&2
     fi
+    [[ $quiet -eq 0 ]] && echo "        RET=$rc" >&2
     return "$rc"
 }
 
 mc_R() {
     local rc
-    media-ctl -R "$1"; rc=$?
+    [[ $quiet -eq 0 ]] && echo -n "media-ctl -d ${mdev} -R "$1"    " >&2
+    media-ctl -d ${mdev} -R "$1"; rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "  ^^ failed: media-ctl -R $1" >&2
     fi
+    [[ $quiet -eq 0 ]] && echo "        RET=$rc" >&2
     return "$rc"
 }
 
 mc_v() {
     local rc
-    media-ctl -V "$1"; rc=$?
+    [[ $quiet -eq 0 ]] && echo -n "media-ctl -d ${mdev} -V "$1"    " >&2
+    media-ctl -d ${mdev} -V "$1"; rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "  ^^ failed: media-ctl -V $1" >&2
     fi
+    [[ $quiet -eq 0 ]] && echo "        RET=$rc" >&2
     return "$rc"
 }
 
@@ -333,7 +367,7 @@ mc_v() {
 # so the live graph, not the ACPI name, decides the PHY / sink pad.
 media_ser_sink_pad() {
     local ser_entity=$1 cam_entity=$2
-    media-ctl -p 2>/dev/null | awk -v cam="$cam_entity" -v ser="$ser_entity" '
+    media-ctl -d ${mdev} -p 2>/dev/null | awk -v cam="$cam_entity" -v ser="$ser_entity" '
         /^- entity / { in_cam = index($0, ": " cam " (") ? 1 : 0; next }
         in_cam && index($0, "-> \"" ser "\":") {
             sub(/^.*-> "[^"]+":/, "")
@@ -379,7 +413,7 @@ NUM_DES=0
 
 # get IPU CSI2 ISYS Capture  /dev/video initial offset
 PREFIX=$(v4l2-ctl --list-devices | grep ipu | grep PCI | sed 's/^\(ipu[6|7]\).*/\1/' | tr '[:lower:]' '[:upper:]')
-VID_DEV_OFFSET=$(media-ctl -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
+VID_DEV_OFFSET=$(media-ctl -d ${mdev} -e "Intel $PREFIX ISYS Capture 0" | awk -F'video' '{print $2}')
 
 # Per-link associative arrays keyed by "d_l" (deserializer index, link index).
 # The serializer is shared by every PHY on a link, so it is keyed per link.
@@ -594,7 +628,7 @@ discover_mipi_cameras() {
 detect_mipi_csi2() {
     [ "$NUM_MIPI" -eq 0 ] && return 0
     local topo i cam csi2 base
-    topo=$(media-ctl -p 2>/dev/null) || return 1
+    topo=$(media-ctl -d ${mdev} -p 2>/dev/null) || return 1
     for ((i = 0; i < NUM_MIPI; i++)); do
         cam="${MIPI_PREFIX[$i]} ${MIPI_BA[$i]}"
         csi2=$(awk -v c="$cam" '
@@ -654,7 +688,7 @@ setup_mipi_cameras() {
 # IMMUTABLE so the live media topology is the source of truth.
 detect_gmsl_csi2() {
     local topo
-    topo=$(media-ctl -p 2>/dev/null) || {
+    topo=$(media-ctl -d ${mdev} -p 2>/dev/null) || {
         echo "ERROR: failed to read media topology via 'media-ctl -p'" >&2
         return 1
     }
@@ -805,7 +839,7 @@ sensor_active_format() {
     local model=$1 cam=$2 stream=$3 sid=$4 output fmt size
 
     sensor_entity_pad "$model" "$cam" "$stream" "$sid" || return 1
-    output=$(media-ctl --get-v4l2 \
+    output=$(media-ctl -d ${mdev} --get-v4l2 \
         "\"${SENSOR_ENTITY}\":${SENSOR_PAD}/${SENSOR_SID}" 2>/dev/null) || return 1
     if [[ $output =~ fmt:([[:alnum:]_]+)/([0-9]+x[0-9]+) ]]; then
         fmt=${BASH_REMATCH[1]}
@@ -820,7 +854,7 @@ sensor_active_fps() {
     local model=$1 cam=$2 stream=$3 sid=$4 dev output
 
     sensor_entity_pad "$model" "$cam" "$stream" "$sid" || return 1
-    dev=$(media-ctl -e "$SENSOR_ENTITY" 2>/dev/null) || return 1
+    dev=$(media-ctl -d ${mdev} -e "$SENSOR_ENTITY" 2>/dev/null) || return 1
     output=$(v4l2-ctl -d "$dev" --get-subdev-fps \
         pad="$SENSOR_PAD",stream="$SENSOR_SID" 2>/dev/null) || return 1
     if [[ $output =~ Frames[[:space:]]per[[:space:]]second:[[:space:]]([0-9.]+) ]]; then
@@ -847,7 +881,7 @@ sensor_validate_format_size() {
     selected_fmt=${requested_fmt:-$active_fmt}
     selected_size=${requested_size:-$active_size}
     sensor_entity_pad "$model" "$cam" "$stream" "$sid" || return 1
-    dev=$(media-ctl -e "$SENSOR_ENTITY" 2>/dev/null) || {
+    dev=$(media-ctl -d ${mdev} -e "$SENSOR_ENTITY" 2>/dev/null) || {
         echo "$selected_fmt $selected_size"
         return 0
     }
@@ -938,7 +972,7 @@ sensor_validate_fps() {
 
     selected_fps=${requested_fps:-$active_fps}
     sensor_entity_pad "$model" "$cam" "$stream" "$sid" || return 1
-    dev=$(media-ctl -e "$SENSOR_ENTITY" 2>/dev/null) || {
+    dev=$(media-ctl -d ${mdev} -e "$SENSOR_ENTITY" 2>/dev/null) || {
         echo "$selected_fps"
         return
     }
@@ -996,7 +1030,7 @@ sensor_set_fps() {
     local model=$1 cam=$2 stream=$3 sid=$4 fps=$5 context=$6 dev output
 
     sensor_entity_pad "$model" "$cam" "$stream" "$sid" || return 1
-    dev=$(media-ctl -e "$SENSOR_ENTITY" 2>/dev/null) || return 1
+    dev=$(media-ctl -d ${mdev} -e "$SENSOR_ENTITY" 2>/dev/null) || return 1
     v4l2-ctl -d "$dev" --set-subdev-fps \
         pad="$SENSOR_PAD",stream="$SENSOR_SID",fps="$fps" >/dev/null \
         || { echo "WARN: ${context}: failed to set FPS '${fps}'" >&2; return 1; }
@@ -1072,6 +1106,17 @@ check_media_ctl_version() {
 
 check_media_tools
 check_media_ctl_version
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		-v|--verbose)
+			quiet=0
+			shift
+		;;
+		*)
+			shift
+		;;
+		esac
+done
 discover || exit 1
 
 [ "$NUM_DES"  -gt 0 ] && { detect_gmsl_csi2 || exit 1; }
@@ -1494,7 +1539,7 @@ done
 
 # Reset all media links and per-stream pad state so we don't inherit formats
 # or enabled-link flags from a prior run with a different layout.
-media-ctl -r 2>/dev/null || true
+media-ctl -d ${mdev} -r 2>/dev/null || true
 
 echo -e "\nConfiguration summary:"
 for k in "${!CFG_LINKS[@]}"; do
@@ -1693,9 +1738,13 @@ for k in "${!CFG_LINKS[@]}"; do
 done
 
 # ---- v4l2-ctl: capture-node format -----------------------------------------
-
 for k in "${!CFG_LINKS[@]}"; do
     d=${CFG_DES[$k]}
+    l=${CFG_LINKS[$k]}
+    ckey=$(cfg_ckey "$k")
+    model=${CAM_MODEL[$ckey]}
+    suffix=$(echo "$l" | tr '0-3' 'a-d')
+    symlink=0
     for s in ${CFG_STREAMS[$k]}; do
         node=$(( CAPTURE_BASE[d] + CSI2_PAD["${k}_${s}"] ))
         vid_node=$(( node + VID_DEV_OFFSET ))
@@ -1704,9 +1753,18 @@ for k in "${!CFG_LINKS[@]}"; do
         size=${CFG_STREAM_SIZE["${k}_${s}"]}
         w=${size%x*}
         h=${size#*x}
-        v4l2-ctl -d "/dev/video${vid_node}" \
+        case "$model" in
+            isx031)
+                symlink=1
+                ;;
+        esac
+        out v4l2-ctl -d "/dev/video${vid_node}" \
             --set-fmt-video="width=${w},height=${h},pixelformat=${pixfmt}" \
-            >/dev/null || die "cannot set /dev/video${vid_node} to ${pixfmt} ${size}"
+            >/dev/null
+        if [ $symlink -ne 0 ]; then
+                dev_ln="/dev/video-${model}-${suffix}-${IPU_CSI2_ENTITY[$d]:0-1}"
+                out ln -snf "/dev/video${vid_node}" ${dev_ln}
+        fi
     done
 done
 
@@ -1727,9 +1785,8 @@ for k in "${!CFG_LINKS[@]}"; do
     fi
     for s in ${CFG_STREAMS[$k]}; do
         vid_node=$(( CAPTURE_BASE[d] + CSI2_PAD["${k}_${s}"] + VID_DEV_OFFSET ))
-        ln -snf "/dev/video${vid_node}" \
-            "/dev/video-ar0234-${suffix}-${IPU_CSI2_ENTITY[$d]: -1}" ||
-            echo "WARN: cannot create /dev/video-ar0234-${suffix} link" >&2
+        out ln -snf "/dev/video${vid_node}" \
+            "/dev/video-ar0234-${suffix}-${IPU_CSI2_ENTITY[$d]: -1}"
     done
 done
 if (( zedx_used )); then
@@ -1739,12 +1796,10 @@ if (( zedx_used )); then
             echo "WARN: cannot set ar0234 frame_sync=${ZEDX_FRAME_SYNC}" >&2
     fi
     psys=intel-${PREFIX,,}-psys
-    modprobe "$psys" || echo "WARN: cannot load ${psys}" >&2
-    mkdir -p /run/camera && chown root:video /run/camera && chmod 777 /run/camera ||
-        echo "WARN: cannot prepare /run/camera" >&2
+    out modprobe "$psys"
+    out mkdir -p /run/camera && chown root:video /run/camera
     if [ -e "/dev/${PREFIX,,}-psys0" ]; then
-        chown root:video "/dev/${PREFIX,,}-psys0" && chmod 777 "/dev/${PREFIX,,}-psys0" ||
-            echo "WARN: cannot set /dev/${PREFIX,,}-psys0 permissions" >&2
+        out chown root:video "/dev/${PREFIX,,}-psys0" && chmod 777 "/dev/${PREFIX,,}-psys0"
     fi
 fi
 
