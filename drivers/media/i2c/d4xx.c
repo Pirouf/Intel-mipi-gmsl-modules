@@ -5870,3 +5870,4 @@ MODULE_AUTHOR("Hao Yao <hao.yao@intel.com>");
 MODULE_AUTHOR("Khai Wen, Ng <khai.wen.ng@intel.com>");
 MODULE_DESCRIPTION("ds5 sensor driver");
 MODULE_LICENSE("GPL v2");
+MODULE_VERSION(DRIVER_VERSION_SUFFIX);
