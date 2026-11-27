@@ -938,6 +938,33 @@ static int max96724_init_phy(struct max_des *des, struct max_des_phy *phy)
 	if (ret)
 		return ret;
 
+#if IS_ENABLED(CONFIG_KBOX_A151_REVA_HOOK)
+	/* Configure both DPLL D-PHY A and C at the same time */
+	if (!is_cphy && index == 2) {
+		/* Put D-PHY DPLL0 block into reset. */
+		ret = regmap_clear_bits(priv->regmap, MAX96724_DPLL_0(0),
+					MAX96724_DPLL_0_CONFIG_SOFT_RST_N);
+		if (ret)
+			return ret;
+		/* Set D-PHY DPLL0 frequency. */
+		ret = regmap_update_bits(priv->regmap, MAX96724_BACKTOP22(0),
+					 MAX96724_BACKTOP22_PHY_CSI_TX_DPLL,
+					 FIELD_PREP(MAX96724_BACKTOP22_PHY_CSI_TX_DPLL,
+						    div_u64(dpll_freq, 100000000)));
+		if (ret)
+			return ret;
+
+		/* Enable D-PHY DPLL0 frequency. */
+		ret = regmap_set_bits(priv->regmap, MAX96724_BACKTOP22(0),
+				      MAX96724_BACKTOP22_PHY_CSI_TX_DPLL_EN);
+		if (ret)
+			return ret;
+
+		/* Pull D-PHY DPLL0 block out of reset. */
+		return regmap_set_bits(priv->regmap, MAX96724_DPLL_0(0),
+				       MAX96724_DPLL_0_CONFIG_SOFT_RST_N);
+	}
+#endif
 	/* Set DPLL frequency. */
 	ret = regmap_update_bits(priv->regmap, MAX96724_BACKTOP22(index),
 				 MAX96724_BACKTOP22_PHY_CSI_TX_DPLL,
